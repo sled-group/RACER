@@ -53,5 +53,19 @@ pip install -e libs/peract_colab
 
 
 
+
+
+
+
+
 ## Trouble shooting
 ### CoppeliaSim issue
+
+
+
+
+# Acknowledgement
+
+This code is adapted and modified upon the released  [RVT](https://github.com/NVlabs/RVT/tree/0b170d7f1e27a13299a5a06134eeb9f53d494e54) code.
+
+We appreciate their open-sourcing such high-quality code, which is very helpful to our research.
