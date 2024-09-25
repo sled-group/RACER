@@ -17,7 +17,7 @@ conda install pytorch==1.13.0 torchvision==0.14.0 torchaudio==0.13.0 pytorch-cud
 
 - **Step 3:** Install PyTorch3D. For more instructions visit [here](https://github.com/facebookresearch/pytorch3d/blob/main/INSTALL.md).
 ```
-conda install -c iopath iopath
+conda install iopath==0.1.9 -c iopath
 conda install pytorch3d==0.7.5 -c pytorch3d
 ```
 
@@ -40,11 +40,12 @@ git clone --recurse-submodules git@github.com:NVlabs/RVT.git && cd RVT && git su
 
 Now, locally install RVT and other libraries using the following command. Make sure you are in folder RVT.
 ```
+source setup_env.bash
 pip install -e . 
-pip install -e rvt/libs/PyRep 
-pip install -e rvt/libs/RLBench 
-pip install -e rvt/libs/YARR 
-pip install -e rvt/libs/peract_colab
+pip install -e libs/PyRep 
+pip install -e libs/RLBench 
+pip install -e libs/YARR 
+pip install -e libs/peract_colab
 ``` 
 
 

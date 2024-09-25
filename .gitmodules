@@ -1,0 +1,15 @@
+[submodule "libs/PyRep"]
+	path = libs/PyRep
+	url = https://github.com/stepjam/PyRep.git
+[submodule "libs/RLbench"]
+	path = libs/RLbench
+	url = https://github.com/YinpeiDai/RLBench.git
+[submodule "libs/YARR"]
+	path = libs/YARR
+	url = https://github.com/YinpeiDai/YARR.git
+[submodule "libs/peract_colab/peract_colab"]
+	path = libs/peract_colab/peract_colab
+	url = https://github.com/peract/peract_colab.git
+[submodule "racer/peract"]
+	path = racer/peract
+	url = https://github.com/NVlabs/peract.git
