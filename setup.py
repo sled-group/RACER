@@ -13,6 +13,7 @@ requirements = [
     "tensorflow==2.13.1",
     "pyquaternion",
     "matplotlib",
+    "numpy-quaternion==2023.0.2"
     "clip @ git+https://github.com/openai/CLIP.git",
 ]
 

@@ -43,7 +43,7 @@ Now, locally install RVT and other libraries using the following command. Make s
 source setup_env.bash
 pip install -e . 
 pip install -e libs/PyRep 
-pip install -e libs/RLBench 
+pip install -e libs/RLbench 
 pip install -e libs/YARR 
 pip install -e libs/peract_colab
 ``` 
@@ -52,14 +52,58 @@ pip install -e libs/peract_colab
 
 
 
+### Prepare Data 
+- **Step 1:**
+Download [RLbench](https://drive.google.com/drive/folders/0B2LlLwoO3nfZfkFqMEhXWkxBdjJNNndGYl9uUDQwS1pfNkNHSzFDNGwzd1NnTmlpZXR1bVE?resourcekey=0-jRw5RaXEYRLe2W6aNrNFEQ) dataset provided by [PerAct](https://github.com/peract/peract#download). Please download and place them under `RACER/racer/data/rlbench/xxx` where `xxx` is either `train`, `test`, or `val`. You can only download `test` for evaluation if you want to save some space.
+
+- **Step 2:**
+Download our augmentation training data. put it under `RACER/racer/data/augment_data`.   
+Note that we we use the same dataloader as PerAct, which is based on [YARR](https://github.com/stepjam/YARR). YARR creates a replay buffer on the fly which can increase the startup time.  We provide an option to directly load the replay buffer from the disk. You can download our replay buffer data [racer_replay_augment]() here, and put place it under  `RACER/racer/replay_buffers`. This is useful only if you want to train RACER by yourself and not needed if you want to evaluate the pre-trained model.
+
+
+
+## Train & Eval
+
+### Training RACER
+##### Default command
+To train RVT on all RLBench tasks, use the following command (from folder `RACER/racer`):
+```
+python train.py --exp_cfg_path configs/all.yaml --device 0,1,2,3,4,5,6,7
+```
 
 
 
 
+### Use LLAVA to talk
+```
+pip install openai==1.27.0
+```
+
+
+### Eval
+
+```
+cd RACER
+source scripts/setup_env.bash
+vncserver :9 # (Optional) open a vncserver if it's not running
+./scripts/eval_rvt.sh # for RVT eval
+./scripts/eval_racer.sh  # for RACER eval
+```
+
+
+### Model ckpt
+Download the official [RVT](https://drive.google.com/drive/folders/1lf1znYM5I-_WSooR4VeJjzvydINWPj6B) model and place it into `racer/runs/rvt_ckpt`.  
+Download our racer [model]() and place it into `racer/runs/racer_ckpt`.
 
 
 ## Trouble shooting
 ### CoppeliaSim issue
+
+
+1. "Cannot load library /home/daiyp/manipulation/RACER/coppeliasim/CoppeliaSim_Edu_V4_5_1_rev4_Ubuntu22_04/libsimExtIM.so: libstdc++.so.6: version `GLIBCXX_3.4.30' not found (required by libopencv_core.so.406))"
+ CoppeliaSim_Edu_V4_1_0_Ubuntu20_04/libsimExtBlueZero.so: (libicui18n.so.66: cannot open shared object file: No such file or directory)"
+
+
 
 
 
@@ -68,4 +112,4 @@ pip install -e libs/peract_colab
 
 This code is adapted and modified upon the released  [RVT](https://github.com/NVlabs/RVT/tree/0b170d7f1e27a13299a5a06134eeb9f53d494e54) code.
 
-We appreciate their open-sourcing such high-quality code, which is very helpful to our research.
+We really appreciate their open-sourcing such high-quality code, which is very helpful to our research!
