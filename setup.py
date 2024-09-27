@@ -2,6 +2,7 @@ from setuptools import setup, find_packages
 
 requirements = [
     "numpy",
+    "click",
     "scipy",
     "einops",
     "pyrender",
@@ -13,7 +14,7 @@ requirements = [
     "tensorflow==2.13.1",
     "pyquaternion",
     "matplotlib",
-    "numpy-quaternion==2023.0.2"
+    "numpy-quaternion==2023.0.2",
     "clip @ git+https://github.com/openai/CLIP.git",
 ]
 

@@ -3,7 +3,7 @@ MODEL=racer_ckpt
 CKPTID=17
 echo ${MODEL}
 start=$(date +%s)
-CUDA_VISIBLE_DEVICES=0 DISPLAY=:9 python evaluation/rollout.py \
+CUDA_VISIBLE_DEVICES=0 python racer/evaluation/rollout.py \
     --model-folder racer/runs/${MODEL} \
     --eval-datafolder racer/data/rlbench/test \
     --tasks all \

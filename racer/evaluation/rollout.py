@@ -154,7 +154,7 @@ class Evaluator:
         rgb_up = np.concatenate([front_rgb, wrist_rgb], axis=1)
         rgb_down = np.concatenate([left_shoulder_rgb, right_shoulder_rgb], axis=1)
         rgb = np.concatenate([rgb_up, rgb_down], axis=0)
-        Image.fromarray(rgb).save("runs/current.png")
+        Image.fromarray(rgb).save("current.png")
 
         if not self.args.use_human_low_level:
             input("Press Enter to continue...")
@@ -228,7 +228,7 @@ class Evaluator:
                         fp.write("failure")
                 
                 # save gif
-                for cam in CAMERAS[:1]:
+                for cam in CAMERAS:
                     frames[f"{cam}_{IMAGE_RGB}"][0].save(
                         f"{ep_save_path}/{cam}_{IMAGE_RGB}.gif",
                         save_all=True,
@@ -343,7 +343,7 @@ class Evaluator:
                     continue
 
             input_lang_str = self.get_input_lang_str_for_policy(
-                task_goal, instruction, old_version=self.args.old_version
+                task_goal, instruction, old_version=self.args.use_full_langlen
             )
 
             episode_dict[step] = self.get_ep_dict(self.last_action, task_goal, input_lang_str)
@@ -398,7 +398,7 @@ class Evaluator:
         final_comment = "Task success!!!" if success else "Task failure!!!"
         for k in frames: # add text to each frame
             frames[k][-1] = self.add_text_to_frame(frames[k][-1], final_comment)
-
+        
         episode_dict[step] = self.get_ep_dict(self.last_action, task_goal, input_lang_str)
 
         return success, error_status, step, episode_dict, frames
@@ -589,7 +589,7 @@ class Evaluator:
         return Image.fromarray(final)
 
     def add_text_to_frame(self, frame, text):
-        self._add_text_beneath_frame(frame, text)
+        return self._add_text_beneath_frame(frame, text)
 
 if __name__ == "__main__":
     args = make_args()

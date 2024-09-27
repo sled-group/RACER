@@ -832,12 +832,8 @@ class RVTAgent:
                 lang_goal_str = [input_lang_str]
             else:
                 lang_goal_str = observation.get("lang_goal_str", None)
-            if use_lang_v2:
-                lang_goal_embs, lang_goal_str_len = self.lang_model.encode(lang_goal_str, to_numpy=False)
-                lang_goal_embs = lang_goal_embs.to(self._device)
-            else:
-                lang_goal_embs = self.lang_model.encode(lang_goal_str, to_numpy=False)
-                lang_goal_str_len = self.lang_model.tokenize(lang_goal_str)[1]
+            lang_goal_embs, lang_goal_str_len = self.lang_model.encode(lang_goal_str, to_numpy=False)
+            lang_goal_embs = lang_goal_embs.to(self._device)
             if use_full_langlen:
                 lang_len = np.array([lang_goal_embs.shape[1]]).astype(np.int32)
             else:

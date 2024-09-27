@@ -6,7 +6,8 @@ import torch
 from yarr.agents.agent import ActResult
 
 from racer.evaluation.utils import ROLLOUT_IMAGE_SIZE
-from racer.utils.racer_utils import CAMERAS
+from racer.utils.racer_utils import CAMERAS, load_agent
+
 
 class Agent:
     r"""Abstract class for defining agents which act inside :ref:`core.env.Env`.
@@ -88,9 +89,8 @@ class ModelRVTAgent(Agent):
         self.agent._device = self.device
 
     def reset(self):
-        from rvt.utils.rvt_utils import load_agent as load_agent_state
         self.agent.build(training=False, device=self.device)
-        load_agent_state(self.model_path, self.agent, evaluation=True)
+        load_agent(self.model_path, self.agent)
         self.agent.eval()
         self.agent.load_lang_model()
         self.agent.reset()
@@ -123,7 +123,7 @@ class ModelRVTAgent(Agent):
         # original rvt uses clip with full langlen 77
         act_result: ActResult = self.agent.act(
             step=0, observation=obs_tensor, input_lang_str=input_lang_str,
-            use_full_langlen=self.use_full_langlen, use_lang_v2=self.use_lang_v2
+            use_full_langlen=self.use_full_langlen
         )
         return act_result.action
     
