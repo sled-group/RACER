@@ -8,23 +8,14 @@ from typing import Dict, List, Union
 import numpy as np
 import requests
 import torch
-from transformers import AutoTokenizer, T5EncoderModel, BartModel, RobertaModel
-import clip
-import os
-
-# whistler 141.212.106.177
-# aspen 141.212.110.118
-URL = "http://141.212.106.177:8000/encode/"
-
-
 
 ALL_MODELS = [
-    "clip", 
-        # "t5-3b", 
-        "t5-11b", 
-        # "bart-large", "roberta-large", 
-        # "llama3"
-        ]
+    # "clip", 
+    # "t5-3b", 
+    "t5-11b", 
+    # "bart-large", "roberta-large", 
+    # "llama3"
+    ]
 
 MAX_LEN = 77
 
@@ -43,7 +34,7 @@ class QueryResult:
         return self.result
     
 # Define the function to query the FastAPI service
-def query_service(text, model,  query_result):
+def query_service(URL, text, model,  query_result):
     def run_query():
         while True:
             response = requests.post(URL, json={"text": text, "model": model})
@@ -60,10 +51,10 @@ def query_service(text, model,  query_result):
     return thread
 
 
-
 class LangModel:
-    def __init__(self, model_name="t5-3b", *args, **kwargs):
+    def __init__(self, model_name, lm_addr, *args, **kwargs):
         self.model_name = model_name
+        self.lm_addr = lm_addr
 
     def make_model(self):
         pass
@@ -76,7 +67,7 @@ class LangModel:
             try:
                 if isinstance(text, list):
                     text = text[0]
-                response = requests.post(URL, json={"text": text, "model": self.model_name})
+                response = requests.post(self.lm_addr, json={"text": text, "model": self.model_name})
                 if response.status_code == 200:
                     res = response.json()
                     self.is_queried = True
@@ -113,7 +104,8 @@ class LangModel:
 
 
 class LangModelZoo:
-    def __init__(self, *args, **kwargs):
+    def __init__(self, lm_addr, *args, **kwargs):
+        self.lm_addr = lm_addr
         self.result_list = []
         self.thread_list = []
     
@@ -125,7 +117,7 @@ class LangModelZoo:
 
     def _query(self, text_id, text, model):
         query_result = QueryResult()
-        self.thread_list.append(query_service(text, model, query_result))
+        self.thread_list.append(query_service(self.lm_addr, text, model, query_result))
         self.result_list.append(
             {"text_id":text_id, 
              "text":text, 
@@ -154,50 +146,23 @@ class LangModelZoo:
         
 
 if __name__ == "__main__":
-    lang_model_zoo = LangModelZoo()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lm-addr", type=str, default="http://141.212.106.177:8000/encode/")
+    args = parser.parse_args()
+    
+    lang_model_zoo = LangModelZoo(lm_addr=args.lm_addr)
     lang_model_zoo.make_models()
 
-    high_level_task_goal = "task goal: close the jar."
-    fine_grained_gpt_lang = "task goal: close the jar. \n Current state: the jar is open.  the jar is open.  the jar is open.  the jar is open.  the jar is open.  the jar is open.  the jar is open.  the jar is open.  the jar is open.the jar is open.  the jar is open.  the jar is open.  the jar is open.  the jar is open.  the jar is open.  the jar is open.  the jar is open.  the jar is open."
-    fine_grained_heuristic_lang = fine_grained_gpt_lang + " \n asdafsdf asdf"
+    task_goal = "task goal: close the jar."
+    rich_inst = "task goal: close the jar. \n Current state: Move the gripper slightly back and to the right to position the mug over the next branch of the cup holder."
+    simp_inst = "task goal: close the jar. \n Current state: Move to the cup."
     for text, text_id, sz in [
-        (high_level_task_goal, "lang_goal_embs", "lang_len"), 
-        (fine_grained_gpt_lang, "fine_gpt_lang_goal_embs", "fine_gpt_lang_len"), 
-        (fine_grained_heuristic_lang, "fine_heuristic_lang_goal_embs", "fine_heuristic_lang_len")]:
+        (task_goal, "task_goal_embs", "task_goal_len"), 
+        (rich_inst, "rich_inst_embs", "rich_inst_len"), 
+        (simp_inst, "simp_inst_embs", "simp_inst_len")]:
         lang_model_zoo.send_task(text_id=text_id, text=text)
     
-    # time.sleep(4)
-    obs_dict = {}
     results = lang_model_zoo.get_results()
-    for res in results:
-        lang_model_name = res["model"]
-        text_id = res["text_id"]
-        obs_dict["%s_%s" % (text_id, lang_model_name)] = np.array(res["embeddings"][0], dtype=np.float32)
-        obs_dict["%s_%s" % (text_id.replace("goal_embs", "len"), lang_model_name)] = np.array([res["token_len"]], dtype=np.int32)
-
-        
-    
-    # for k, v in obs_dict.items():
-    #     if "len" in k:
-    #         print(k, v)
-    #     else:
-    #         print(k, v.shape, v[:3, :2])
-
-        
-
-    
-    
-
-
-
-
-# [[ 0.13851969]
-#  [ 0.13851945]
-#  [-0.6225466 ]
-#  [-0.49029982]
-#  [-0.20987208]
-#  [ 0.7380806 ]
-#  [-0.33663288]
-#  [ 0.23175196]
-#  [ 0.15370028]
-#  [ 0.        ]]
+    for item in results:
+        print(item["text_id"], item["text"], item["model"], np.array(item["embeddings"]).shape, item["token_len"])

@@ -3,16 +3,17 @@ MODEL=racer_ckpt
 CKPTID=17
 echo ${MODEL}
 start=$(date +%s)
-CUDA_VISIBLE_DEVICES=0 python racer/evaluation/rollout.py \
+CUDA_VISIBLE_DEVICES=1 python racer/evaluation/rollout.py \
     --model-folder racer/runs/${MODEL} \
     --eval-datafolder racer/data/rlbench/test \
     --tasks all \
     --start-episode 0 \
     --eval-episodes 25 \
     --episode-length 30 \
-    --log-name test \
+    --log-name testxxx \
     --model-name model_17.pth \
     --eval-log-dir racer/runs/${MODEL}/eval \
+    --lm-address http://141.212.106.177:8000/encode/ \
     --vlm-address http://141.212.106.177:21002  --use-vlm
 
 end=$(date +%s)

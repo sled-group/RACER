@@ -6,7 +6,7 @@ from pyrep.const import RenderMode
 from rlbench.backend.conditions import Condition
 from racer.peract.helpers.custom_rlbench_env import CustomRLBenchEnv
 
-from yarr.agents.agent import ActResult, VideoSummary, TextSummary
+from yarr.agents.agent import ActResult
 from yarr.utils.transition import Transition
 
 from pyrep.errors import IKError, ConfigurationPathError
@@ -104,7 +104,7 @@ class CustomRLRenchEnv2(CustomRLBenchEnv):
                 self._task.set_variation(i % variation_count)
             else:
                 self._task.set_variation(0)
-            with open(f"/home/daiyp/manipulation/RVT/rvt/gradio_demo/random_seeds/random_seed{i}.pkl", 'rb') as f:
+            with open(f"racer/gradio_demo/random_seeds/random_seed{i}.pkl", 'rb') as f:
                 random_seed = pickle.load(f)
             np.random.set_state(random_seed)
             desc, obs = self._task.reset()
@@ -149,6 +149,8 @@ class CustomRLRenchEnv2(CustomRLBenchEnv):
                 terminal = False
                 reward = 0.0
             obs_copy = copy.deepcopy(obs)
+            obs_copy.gripper_pose = action[:7]
+            obs_copy.gripper_open = action[7]
             if reward >= 1:
                 success = True
                 reward *= self._reward_scale
@@ -306,6 +308,10 @@ def get_robot_delta_state(prev_obs:Observation, curr_obs:Observation):
 
         sentence_parts = []
 
+        is_translation_changed = True
+        is_rotation_changed = True
+        is_gripper_changed = True
+        is_collision_changed = True
         # Position descriptions
         movements = []
         for direction, axis, sign in DIRECTIONS:
@@ -317,6 +323,7 @@ def get_robot_delta_state(prev_obs:Observation, curr_obs:Observation):
                 movements.append(desc)
         if not movements:
             movements.append("didn't move its gripper")
+            is_translation_changed = False
 
         sentence_parts.append(", ".join(movements))
 
@@ -329,6 +336,7 @@ def get_robot_delta_state(prev_obs:Observation, curr_obs:Observation):
                 rotation = "rotated the gripper about z-axis"
         else:
             rotation = "didn't rotate the gripper"
+            is_rotation_changed = False
         
         if rotation:
             sentence_parts.append(rotation)
@@ -338,6 +346,7 @@ def get_robot_delta_state(prev_obs:Observation, curr_obs:Observation):
             gripper_change = "opened the gripper" if delta_action['gripper'] == 1 else "closed the gripper"
         else:
             gripper_change = "kept the gripper open" if curr_action.gripper_open == 1 else "kept the gripper closed"
+            is_gripper_changed = False
         sentence_parts.append(gripper_change)
 
         # Collision plan
@@ -345,6 +354,8 @@ def get_robot_delta_state(prev_obs:Observation, curr_obs:Observation):
         if delta_action['collision'] != 0:
             collision_description = "that can allow collisions" if delta_action['collision'] == 1 else "that avoids any collision"
             collision_description = f"by planning a motion path {collision_description}"
+        else:
+            is_collision_changed = False
 
         # Join parts with proper handling of "and"
         complete_sentence = "Then the robot " + sentence_parts[0]
@@ -361,4 +372,5 @@ def get_robot_delta_state(prev_obs:Observation, curr_obs:Observation):
 
         complete_sentence += "."
 
-        return complete_sentence
+        is_robot_state_changed = is_translation_changed or is_rotation_changed or is_gripper_changed or is_collision_changed
+        return complete_sentence, is_robot_state_changed

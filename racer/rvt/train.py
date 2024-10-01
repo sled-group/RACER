@@ -20,21 +20,20 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-import config as exp_cfg_mod
+import rvt.config as exp_cfg_mod
 import rvt.models.rvt_agent as rvt_agent
 import rvt.utils.ddp_utils as ddp_utils
 import rvt.mvt.config as mvt_cfg_mod
 
 from rvt.mvt.mvt import MVT
-from rvt.models.rvt_agent import print_eval_log, print_loss_log
-from rvt.utils.get_dataset import get_dataset
+from rvt.models.rvt_agent import print_loss_log
 from rvt.utils.rvt_utils import (
     TensorboardManager,
     short_name,
     get_num_feat,
-    load_agent,
-    RLBENCH_TASKS,
+    load_agent
 )
+from racer.utils.racer_utils import RLBENCH_TASKS
 from rvt.utils.peract_utils import (
     CAMERAS,
     SCENE_BOUNDS,
@@ -183,6 +182,7 @@ def experiment(rank, cmd_args, devices, port):
     print("Training on {} tasks: {}".format(len(tasks), tasks))
 
     t_start = time.time()
+    from rvt.utils.get_dataset import get_dataset
     get_dataset_func = lambda: get_dataset(
         tasks,
         BATCH_SIZE_TRAIN,

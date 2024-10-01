@@ -9,13 +9,20 @@ CUDA_VISIBLE_DEVICES=0 python racer/evaluation/rollout.py \
     --tasks all \
     --start-episode 0 \
     --eval-episodes 25 \
-    --episode-length 30 \
+    --episode-length 25 \
     --log-name test \
     --model-name model_14.pth \
     --eval-log-dir racer/runs/${MODEL}/eval \
+    --lm-address http://141.212.106.177:8000/encode/ \
     --use-full-langlen
 
 end=$(date +%s)
 runtime=$((end-start))
 runtime_minutes=$(echo "$runtime / 60" | bc -l)
 printf "Execution time: %.2f minutes\n" $runtime_minutes
+
+
+
+# # whistler 141.212.106.177
+# # aspen 141.212.110.118
+# URL = "http://141.212.106.177:8000/encode/"

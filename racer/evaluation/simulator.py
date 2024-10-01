@@ -91,7 +91,8 @@ class RLBenchSim:
             print(f"Error: action was {action}")
             if self.task_name in ["put_item_in_drawer"]:
                 transition = self.env.step(ActResult(action=STAND_POSE_ACTION))
-            if self.task_name in ["open_drawer"] and self.last_action is not None:
+            if self.task_name in ["open_drawer"] and self.last_action is not None: 
+                # hot fix to avoid strange invalid error
                 action[0] = (self.last_action[0] + action[0])/2
                 action[2] = (self.last_action[2] + action[2])/2
                 transition = self.env.step(ActResult(action=action))

@@ -287,12 +287,8 @@ class RVTAgent:
         cameras: list = peract_utils.CAMERAS,
         log_dir="",
         lang_model_name="clip",
-        add_failure_head=False,
-        failure_head_dim=5,
-        use_lang_type="task",
-        image_size=128,
-        mix_ratio=0,
-        lang_level=3,
+        image_size=256,
+        lang_level="rich",
     ):
         """
         :param gt_hm_sigma: the std of the groundtruth hm, currently for for
@@ -330,9 +326,6 @@ class RVTAgent:
         
         self.lang_model_name = lang_model_name
         self.add_strong_lang = True if lang_model_name != "clip" else False
-        self.add_failure_head = add_failure_head
-        self.failure_head_dim = failure_head_dim
-        self.use_lang_type = use_lang_type
 
         self._cross_entropy_loss = nn.CrossEntropyLoss(reduction="none")
         if isinstance(self._network, DistributedDataParallel):
@@ -343,7 +336,6 @@ class RVTAgent:
         self.num_all_rot = self._num_rotation_classes * 3
 
         self.image_size = image_size
-        self.mix_ratio = mix_ratio
         self.lang_level = lang_level
 
     def build(self, training: bool, device: torch.device = None):
@@ -396,19 +388,14 @@ class RVTAgent:
             after_scheduler=after_scheduler,
         )
 
-    def load_lang_model(self):
-        # self.clip_model, self.clip_preprocess = clip.load("RN50", device=self._device)
-        # self.clip_model.eval()
-        self.lang_model = LangModel(model_name=self.lang_model_name, device=self._device)
+    def load_lang_model(self, lm_addr: str = None):
+        self.lang_model = LangModel(model_name=self.lang_model_name, lm_addr=lm_addr, device=self._device)
         self.lang_model.make_model()
 
     def unload_lang_model(self):
         self.lang_model.unmake_model()
         del self.lang_model
-        # del self.clip_model
-        # del self.clip_preprocess
-        # with torch.cuda.device(self._device):
-        #     torch.cuda.empty_cache()
+
 
     # copied from per-act and removed the translation part
     def _get_one_hot_expert_actions(
@@ -541,32 +528,18 @@ class RVTAgent:
             "llama3", "clip"]
 
         # determine whether data from original or augmented
-        if "fine_gpt_lang_goal" in replay_sample and self.use_lang_type in ["gpt", "heuristic"]:
-            if self.use_lang_type == "gpt":
-                if self.lang_level == 3:
-                    lang_goal_embs_key = "fine_gpt_lang_goal_embs_%s" % self.lang_model_name
-                    lang_lens_key = "fine_gpt_lang_len_%s" % self.lang_model_name
-                    print(f"Using fine_gpt_lang_goal: {replay_sample['fine_gpt_lang_goal']}")
-                elif self.lang_level == 2:
-                    lang_goal_embs_key = "fine_gpt_lang_goal_embs_%s-level2" % self.lang_model_name
-                    lang_lens_key = "fine_gpt_lang_len_%s-level2" % self.lang_model_name
-                    print(f"Using fine_gpt_lang_goal-level2: {replay_sample['fine_gpt_lang_goal-level2']}")
-                elif self.lang_level == 1:
-                    lang_goal_embs_key = "fine_gpt_lang_goal_embs_%s-level1" % self.lang_model_name
-                    lang_lens_key = "fine_gpt_lang_len_%s-level1" % self.lang_model_name
-                    print(f"Using fine_gpt_lang_goal-level1: {replay_sample['fine_gpt_lang_goal-level1']}")
-                elif self.lang_level == 0:
-                    lang_goal_embs_key = "lang_goal_embs_%s" % self.lang_model_name
-                    lang_lens_key = "lang_len_%s" % self.lang_model_name
-                    print(f"Using lang_goal: {replay_sample['lang_goal']}")
-            else:
-                lang_goal_embs_key = "fine_heuristic_lang_goal_embs_%s" % self.lang_model_name
-                lang_lens_key = "fine_heuristic_lang_len_%s" % self.lang_model_name
-                # print(f"Using fine_heuristic_lang_goal: {replay_sample['fine_heuristic_lang_goal']}")
+        if self.lang_level == "rich":
+            lang_goal_embs_key = "rich_inst_embs_%s" % self.lang_model_name
+            lang_lens_key = "rich_inst_len_%s" % self.lang_model_name
+            # print(f"Using task goal + rich instruction: {replay_sample['rich_inst']}")
+        elif self.lang_level == "simple":
+            lang_goal_embs_key = "simp_inst_embs_%s" % self.lang_model_name
+            lang_lens_key = "simp_inst_len_%s" % self.lang_model_name
+            # print(f"Using task goal + simple instruction: {replay_sample['simp_inst']}")
         else:
-            lang_goal_embs_key = "lang_goal_embs_%s" % self.lang_model_name
-            lang_lens_key = "lang_len_%s" % self.lang_model_name
-            # print(f"Using lang_goal: {replay_sample['lang_goal']}")
+            lang_goal_embs_key = "task_goal_embs_%s" % self.lang_model_name
+            lang_lens_key = "task_goal_len_%s" % self.lang_model_name
+            # print(f"Using task goal only: {replay_sample['task_goal']}")
 
         if self.add_strong_lang:
             if self.lang_model_name == "llama3":
@@ -575,9 +548,6 @@ class RVTAgent:
                 assert replay_sample[lang_goal_embs_key].shape[1:] == (1, 77, 1024)
         else:
             assert replay_sample[lang_goal_embs_key].shape[1:] == (1, 77, 512)
-          
-        if self.add_failure_head:
-            assert replay_sample["failure_labels"].shape[1:] == (1, 1)
 
         # sample
         action_rot_grip = replay_sample["rot_grip_action_indicies"][
@@ -619,203 +589,198 @@ class RVTAgent:
 
         replay_sample = self.preprocess_resolution(replay_sample)
 
-        obs, pcd = peract_utils._preprocess_inputs(replay_sample, self.cameras)
+        # obs, pcd = peract_utils._preprocess_inputs(replay_sample, self.cameras)
 
-        with torch.no_grad():
-            pc, img_feat = rvt_utils.get_pc_img_feat(
-                obs,
-                pcd,
-            )# (N,3) (N,3)
+        # with torch.no_grad():
+        #     pc, img_feat = rvt_utils.get_pc_img_feat(
+        #         obs,
+        #         pcd,
+        #     )# (N,3) (N,3)
 
-            if self._transform_augmentation and backprop:
-                action_trans_con, action_rot, pc = apply_se3_aug_con(
-                    pcd=pc,
-                    action_gripper_pose=action_gripper_pose,
-                    bounds=torch.tensor(self.scene_bounds),
-                    trans_aug_range=torch.tensor(self._transform_augmentation_xyz),
-                    rot_aug_range=torch.tensor(self._transform_augmentation_rpy),
-                )
-                action_trans_con = torch.tensor(action_trans_con).to(pc.device)
-                action_rot = torch.tensor(action_rot).to(pc.device)
+        #     if self._transform_augmentation and backprop:
+        #         action_trans_con, action_rot, pc = apply_se3_aug_con(
+        #             pcd=pc,
+        #             action_gripper_pose=action_gripper_pose,
+        #             bounds=torch.tensor(self.scene_bounds),
+        #             trans_aug_range=torch.tensor(self._transform_augmentation_xyz),
+        #             rot_aug_range=torch.tensor(self._transform_augmentation_rpy),
+        #         )
+        #         action_trans_con = torch.tensor(action_trans_con).to(pc.device)
+        #         action_rot = torch.tensor(action_rot).to(pc.device)
 
-            # TODO: vectorize
-            action_rot = action_rot.cpu().numpy()
-            for i, _action_rot in enumerate(action_rot):
-                _action_rot = aug_utils.normalize_quaternion(_action_rot)
-                if _action_rot[-1] < 0:
-                    _action_rot = -_action_rot
-                action_rot[i] = _action_rot
+        #     # TODO: vectorize
+        #     action_rot = action_rot.cpu().numpy()
+        #     for i, _action_rot in enumerate(action_rot):
+        #         _action_rot = aug_utils.normalize_quaternion(_action_rot)
+        #         if _action_rot[-1] < 0:
+        #             _action_rot = -_action_rot
+        #         action_rot[i] = _action_rot
 
-            pc, img_feat = rvt_utils.move_pc_in_bound(
-                pc, img_feat, self.scene_bounds, no_op=not self.move_pc_in_bound
-            )
-            wpt = [x[:3] for x in action_trans_con]
+        #     pc, img_feat = rvt_utils.move_pc_in_bound(
+        #         pc, img_feat, self.scene_bounds, no_op=not self.move_pc_in_bound
+        #     )
+        #     wpt = [x[:3] for x in action_trans_con]
 
-            wpt_local = []
-            rev_trans = []
-            for _pc, _wpt in zip(pc, wpt):
-                a, b = mvt_utils.place_pc_in_cube(
-                    _pc,
-                    _wpt,
-                    with_mean_or_bounds=self._place_with_mean,
-                    scene_bounds=None if self._place_with_mean else self.scene_bounds,
-                )
-                wpt_local.append(a.unsqueeze(0))
-                rev_trans.append(b)
+        #     wpt_local = []
+        #     rev_trans = []
+        #     for _pc, _wpt in zip(pc, wpt):
+        #         a, b = mvt_utils.place_pc_in_cube(
+        #             _pc,
+        #             _wpt,
+        #             with_mean_or_bounds=self._place_with_mean,
+        #             scene_bounds=None if self._place_with_mean else self.scene_bounds,
+        #         )
+        #         wpt_local.append(a.unsqueeze(0))
+        #         rev_trans.append(b)
 
-            wpt_local = torch.cat(wpt_local, axis=0)
+        #     wpt_local = torch.cat(wpt_local, axis=0)
 
-            # TODO: Vectorize
-            pc = [
-                mvt_utils.place_pc_in_cube(
-                    _pc,
-                    with_mean_or_bounds=self._place_with_mean,
-                    scene_bounds=None if self._place_with_mean else self.scene_bounds,
-                )[0]
-                for _pc in pc
-            ]
+        #     # TODO: Vectorize
+        #     pc = [
+        #         mvt_utils.place_pc_in_cube(
+        #             _pc,
+        #             with_mean_or_bounds=self._place_with_mean,
+        #             scene_bounds=None if self._place_with_mean else self.scene_bounds,
+        #         )[0]
+        #         for _pc in pc
+        #     ]
 
-            bs = len(pc)
-            nc = self._net_mod.num_img
-            h = w = self._net_mod.img_size
+        #     bs = len(pc)
+        #     nc = self._net_mod.num_img
+        #     h = w = self._net_mod.img_size
 
-            if backprop and (self.img_aug != 0):
-                img_aug = self.img_aug
-            else:
-                img_aug = 0
+        #     if backprop and (self.img_aug != 0):
+        #         img_aug = self.img_aug
+        #     else:
+        #         img_aug = 0
 
-            dyn_cam_info = None
+        #     dyn_cam_info = None
 
-        out = self._network(
-            pc=pc,
-            img_feat=img_feat,
-            proprio=proprio,
-            lang_emb=lang_goal_embs,
-            lang_len=lang_lens,
-            img_aug=img_aug,
-        )
+        # out = self._network(
+        #     pc=pc,
+        #     img_feat=img_feat,
+        #     proprio=proprio,
+        #     lang_emb=lang_goal_embs,
+        #     lang_len=lang_lens,
+        #     img_aug=img_aug,
+        # )
 
-        q_trans, rot_q, grip_q, collision_q, y_q, pts = self.get_q(
-            out, dims=(bs, nc, h, w)
-        )
+        # q_trans, rot_q, grip_q, collision_q, y_q, pts = self.get_q(
+        #     out, dims=(bs, nc, h, w)
+        # )
 
-        (
-            action_rot_x_one_hot,   # (bs, 72)
-            action_rot_y_one_hot,   # (bs, 72)
-            action_rot_z_one_hot,  # (bs, 72)
-            action_grip_one_hot,  # (bs, 2)
-            action_collision_one_hot,  # (bs, 2)
-        ) = self._get_one_hot_expert_actions(
-            bs, action_rot, action_grip, action_ignore_collisions, device=self._device
-        )        
-        action_trans = self.get_action_trans(
-            wpt_local, pts, out, dyn_cam_info, dims=(bs, nc, h, w)
-        )
+        # (
+        #     action_rot_x_one_hot,   # (bs, 72)
+        #     action_rot_y_one_hot,   # (bs, 72)
+        #     action_rot_z_one_hot,  # (bs, 72)
+        #     action_grip_one_hot,  # (bs, 2)
+        #     action_collision_one_hot,  # (bs, 2)
+        # ) = self._get_one_hot_expert_actions(
+        #     bs, action_rot, action_grip, action_ignore_collisions, device=self._device
+        # )        
+        # action_trans = self.get_action_trans(
+        #     wpt_local, pts, out, dyn_cam_info, dims=(bs, nc, h, w)
+        # )
 
-        loss_log = {}
-        if backprop:
-            # cross-entropy loss
-            trans_loss = self._cross_entropy_loss(q_trans, action_trans).mean()
-            rot_loss_x = rot_loss_y = rot_loss_z = 0.0
-            grip_loss = 0.0
-            collision_loss = 0.0                
-            if self.add_rgc_loss:
-                rot_loss_x = self._cross_entropy_loss(
-                    rot_q[
-                        :,
-                        0 * self._num_rotation_classes : 1 * self._num_rotation_classes,
-                    ],
-                    action_rot_x_one_hot.argmax(-1),
-                ).mean()
+        # loss_log = {}
+        # if backprop:
+        #     # cross-entropy loss
+        #     trans_loss = self._cross_entropy_loss(q_trans, action_trans).mean()
+        #     rot_loss_x = rot_loss_y = rot_loss_z = 0.0
+        #     grip_loss = 0.0
+        #     collision_loss = 0.0                
+        #     if self.add_rgc_loss:
+        #         rot_loss_x = self._cross_entropy_loss(
+        #             rot_q[
+        #                 :,
+        #                 0 * self._num_rotation_classes : 1 * self._num_rotation_classes,
+        #             ],
+        #             action_rot_x_one_hot.argmax(-1),
+        #         ).mean()
 
-                rot_loss_y = self._cross_entropy_loss(
-                    rot_q[
-                        :,
-                        1 * self._num_rotation_classes : 2 * self._num_rotation_classes,
-                    ],
-                    action_rot_y_one_hot.argmax(-1),
-                ).mean()
+        #         rot_loss_y = self._cross_entropy_loss(
+        #             rot_q[
+        #                 :,
+        #                 1 * self._num_rotation_classes : 2 * self._num_rotation_classes,
+        #             ],
+        #             action_rot_y_one_hot.argmax(-1),
+        #         ).mean()
 
-                rot_loss_z = self._cross_entropy_loss(
-                    rot_q[
-                        :,
-                        2 * self._num_rotation_classes : 3 * self._num_rotation_classes,
-                    ],
-                    action_rot_z_one_hot.argmax(-1),
-                ).mean()
+        #         rot_loss_z = self._cross_entropy_loss(
+        #             rot_q[
+        #                 :,
+        #                 2 * self._num_rotation_classes : 3 * self._num_rotation_classes,
+        #             ],
+        #             action_rot_z_one_hot.argmax(-1),
+        #         ).mean()
 
-                grip_loss = self._cross_entropy_loss(
-                    grip_q,
-                    action_grip_one_hot.argmax(-1),
-                ).mean()
+        #         grip_loss = self._cross_entropy_loss(
+        #             grip_q,
+        #             action_grip_one_hot.argmax(-1),
+        #         ).mean()
 
-                collision_loss = self._cross_entropy_loss(
-                    collision_q, action_collision_one_hot.argmax(-1)
-                ).mean()
+        #         collision_loss = self._cross_entropy_loss(
+        #             collision_q, action_collision_one_hot.argmax(-1)
+        #         ).mean()
 
-            total_loss = (
-                trans_loss
-                + rot_loss_x
-                + rot_loss_y
-                + rot_loss_z * 2
-                + grip_loss
-                + collision_loss
-            )
+        #     total_loss = (
+        #         trans_loss
+        #         + rot_loss_x
+        #         + rot_loss_y
+        #         + rot_loss_z * 2
+        #         + grip_loss
+        #         + collision_loss
+        #     )
             
-            if self.add_failure_head:
-                failure_loss = self._cross_entropy_loss(
-                    out["failure_head"], replay_sample["failure_labels"].long().reshape(-1)
-                ).mean()
-                total_loss += failure_loss
 
-            self._optimizer.zero_grad(set_to_none=True)
-            total_loss.backward()
-            self._optimizer.step()
-            self._lr_sched.step()
+        #     self._optimizer.zero_grad(set_to_none=True)
+        #     total_loss.backward()
+        #     self._optimizer.step()
+        #     self._lr_sched.step()
 
-            loss_log = {
-                "total_loss": total_loss.item(),
-                "trans_loss": trans_loss.item(),
-                "rot_loss_x": rot_loss_x.item(),
-                "rot_loss_y": rot_loss_y.item(),
-                "rot_loss_z": rot_loss_z.item(),
-                "grip_loss": grip_loss.item(),
-                "collision_loss": collision_loss.item(),
-                "lr": self._optimizer.param_groups[0]["lr"],
-            }
-            if self.add_failure_head:
-                loss_log["failure_loss"] = failure_loss.item()
-            manage_loss_log(self, loss_log, reset_log=reset_log)
-            return_out.update(loss_log)
+        #     loss_log = {
+        #         "total_loss": total_loss.item(),
+        #         "trans_loss": trans_loss.item(),
+        #         "rot_loss_x": rot_loss_x.item(),
+        #         "rot_loss_y": rot_loss_y.item(),
+        #         "rot_loss_z": rot_loss_z.item(),
+        #         "grip_loss": grip_loss.item(),
+        #         "collision_loss": collision_loss.item(),
+        #         "lr": self._optimizer.param_groups[0]["lr"],
+        #     }
 
-        if eval_log:
-            with torch.no_grad():
-                wpt = torch.cat([x.unsqueeze(0) for x in wpt])
-                pred_wpt, pred_rot_quat, _, _ = self.get_pred(
-                    out,
-                    rot_q,
-                    grip_q,
-                    collision_q,
-                    y_q,
-                    rev_trans,
-                    dyn_cam_info=dyn_cam_info,
-                )
 
-                return_log = manage_eval_log(
-                    self=self,
-                    tasks=tasks,
-                    wpt=wpt,
-                    pred_wpt=pred_wpt,
-                    action_rot=action_rot,
-                    pred_rot_quat=pred_rot_quat,
-                    action_grip_one_hot=action_grip_one_hot,
-                    grip_q=grip_q,
-                    action_collision_one_hot=action_collision_one_hot,
-                    collision_q=collision_q,
-                    reset_log=reset_log,
-                )
+        #     manage_loss_log(self, loss_log, reset_log=reset_log)
+        #     return_out.update(loss_log)
 
-                return_out.update(return_log)
+        # if eval_log:
+        #     with torch.no_grad():
+        #         wpt = torch.cat([x.unsqueeze(0) for x in wpt])
+        #         pred_wpt, pred_rot_quat, _, _ = self.get_pred(
+        #             out,
+        #             rot_q,
+        #             grip_q,
+        #             collision_q,
+        #             y_q,
+        #             rev_trans,
+        #             dyn_cam_info=dyn_cam_info,
+        #         )
+
+        #         return_log = manage_eval_log(
+        #             self=self,
+        #             tasks=tasks,
+        #             wpt=wpt,
+        #             pred_wpt=pred_wpt,
+        #             action_rot=action_rot,
+        #             pred_rot_quat=pred_rot_quat,
+        #             action_grip_one_hot=action_grip_one_hot,
+        #             grip_q=grip_q,
+        #             action_collision_one_hot=action_collision_one_hot,
+        #             collision_q=collision_q,
+        #             reset_log=reset_log,
+        #         )
+
+        #         return_out.update(return_log)
 
         return return_out
 
@@ -901,9 +866,6 @@ class RVTAgent:
             )
         )
         
-        if self.add_failure_head:
-            pred_failure =  out["failure_head"].argmax(-1)
-            continuous_action = np.concatenate((continuous_action, pred_failure.cpu().numpy()))
         
         if pred_distri:
             x_distri = rot_grip_q[

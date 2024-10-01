@@ -232,34 +232,8 @@ def get_eval_parser():
 
     return parser
 
-RLBENCH_TASKS = [
-    "put_item_in_drawer",
-    "reach_and_drag",
-    "turn_tap",
-    "slide_block_to_color_target",
-    "open_drawer",
-    "put_groceries_in_cupboard",
-    "place_shape_in_shape_sorter",
-    "put_money_in_safe",
-    "push_buttons",
-    "close_jar",
-    "stack_blocks",
-    "place_cups",
-    "place_wine_at_rack_location",
-    "light_bulb_in",
-    "sweep_to_dustpan_of_size",
-    "insert_onto_square_peg",
-    "meat_off_grill",
-    "stack_cups",
-]
-
 
 def load_agent(agent_path, agent=None, only_epoch=False):
-    if isinstance(agent, PreprocessAgent2):
-        assert not only_epoch
-        agent._pose_agent.load_weights(agent_path)
-        return 0
-
     checkpoint = torch.load(agent_path, map_location="cpu")
     epoch = checkpoint["epoch"]
 

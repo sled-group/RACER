@@ -47,37 +47,41 @@ pip install -e libs/peract_colab
 
 
 
-
-
 ### Prepare Data 
 - **Step 1:**
 Download [RLbench](https://drive.google.com/drive/folders/0B2LlLwoO3nfZfkFqMEhXWkxBdjJNNndGYl9uUDQwS1pfNkNHSzFDNGwzd1NnTmlpZXR1bVE?resourcekey=0-jRw5RaXEYRLe2W6aNrNFEQ) dataset provided by [PerAct](https://github.com/peract/peract#download). Please download and place them under `RACER/racer/data/rlbench/xxx` where `xxx` is either `train`, `test`, or `val`.   
 You can only download `test` for evaluation if you want to save some space.
 
 - **Step 2:**
-Download our augmentation training data. put it under `RACER/racer/data/augment_data`.   
-The data will be processed into replay buffers by [YARR](https://github.com/stepjam/YARR).To save data processing time, you can also download our generated replay buffer data [racer_replay_augment]() here, and put place it under  `RACER/racer/replay_buffers`.   
+Download our augmentation training data. put it under `RACER/racer/data/augmented_rlbench/xxx`, where `xxx` is either `train` or `val`.
+
+
+
+### Prepare Model service
+We set a client-server framework for language encoder service and LLaVA model service, please refer this page for details.  After the language encoder service is set up, you should be able to test it with `python racer/utils/lang_enc_utils_v2.py --lm-addr <lm service addr>`
+
+
+### Data Processing
+After set up the language encoder service,  you can process the data using `python racer/utils/preprocess_data.py`. The data will be processed into replay buffers by [YARR](https://github.com/stepjam/YARR).  
+To save data processing time, you can also download our generated replay buffer data [racer_replay_public]() here, and put place it under  `RACER/racer/replay_buffers`.   
 This is useful only if you want to train RACER by yourself and not needed if you just want to evaluate the pre-trained model.
 
 
 
-## Train & Eval
-
-### Training RACER
-##### Default command
+## Training RACER
+### Training visuomotor policy
 To train RVT on all RLBench tasks, use the following command (from folder `RACER/racer`):
 ```
 python train.py --exp_cfg_path configs/all.yaml --device 0,1,2,3,4,5,6,7
 ```
 
+### Training LLaVA model
+Please refer to this [page]()
 
 
 
-### Use LLAVA to talk
-
-### Eval
-First, set up a language model serive following [here]()
-lang_model_address
+## Evaluating RACER
+First, set up a language model serive following [Prepare Model service](#prepare_model_service) and get the lang_model_address. 
 
 Evaluate RVT
 ```
@@ -88,6 +92,12 @@ Evaluate RACER, you first need to set up llava service and language encoder serv
 ```
 ./scripts/eval_racer.sh  # for RACER eval
 ```
+
+Peak Memory: 19.2GB for langauge model service, 31.7 GB for llava service, 15.5 GB for visuomotor policy model. 
+
+
+## Gradio Demo
+`pip install gradio==4.36.1` 
 
 
 ### Model ckpt

@@ -9,17 +9,17 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from racer.trainer import DDPTrainer
 import tqdm
 
-from rvt.train import (
+from racer.rvt.train import (
     save_agent, get_tasks, 
     get_logdir, dump_log, exp_cfg_mod, 
-    short_name, get_dataset, DATA_FOLDER, mvt_cfg_mod,
+    mvt_cfg_mod,
     get_num_feat, rvt_agent, SCENE_BOUNDS, CAMERAS, 
     load_agent, TensorboardManager)
 
 from rvt.mvt.mvt_v2 import MVT
 from rvt.models.rvt_agent import print_loss_log
-
-from rvt.utils.get_dataset_aug import get_dataset_v2 as get_dataset_aug
+from racer.utils.get_dataset_aug import get_dataset_v2 as get_dataset_aug
+from racer.utils.racer_utils import print0
 
 class ExampleTrainer(DDPTrainer):
     
@@ -38,10 +38,7 @@ class ExampleTrainer(DDPTrainer):
         
         # parser.add_argument("--replay-dir", type=str, default="replay")
         parser.add_argument("--replay-dir-aug", type=str, default="replay_aug")
-        parser.add_argument("--data-image-size", type=int, default=128)
-        
-        parser.add_argument("--initial-choice", type=str, choices=["vision", "transformer", "all"], default="all")
-        parser.add_argument("--other-lang-path", type=str, default=None)
+        parser.add_argument("--data-image-size", type=int, default=512)    
 
         
         cmd_args = parser.parse_args()
@@ -58,48 +55,32 @@ class ExampleTrainer(DDPTrainer):
 
         # Things to change
         BATCH_SIZE_TRAIN = exp_cfg.bs
-        NUM_TRAIN = 100
-        # to match peract, iterations per epoch
-        # 127570 in total
-
+        
         TRAINING_ITERATIONS = 125384 // (exp_cfg.bs * world_size) # TODO: to be determined. 
         EPOCHS = exp_cfg.epochs
         if exp_cfg.peract.warmup_proportion > 0:
             exp_cfg.peract.warmup_steps = int(TRAINING_ITERATIONS * exp_cfg.peract.warmup_proportion * EPOCHS)
         if world_rank == 0:
-            print(f"dict(exp_cfg)={dict(exp_cfg)}")
+            print0(f"dict(exp_cfg)={dict(exp_cfg)}")
         exp_cfg.freeze()
         
         log_dir = get_logdir(cmd_args, exp_cfg)
         tasks = get_tasks(exp_cfg) # list of task name
-        print("Training on {} tasks: {}".format(len(tasks), tasks))
+        print0("Training on {} tasks: {}".format(len(tasks), tasks))
 
         t_start = time.time()
         get_dataset_func_aug = lambda: get_dataset_aug(
             tasks,
             BATCH_SIZE_TRAIN,
-            None,
-            None,
-            f"{cmd_args.replay_dir_aug}/replay_train",
-            None,
-            None, 
-            DATA_FOLDER,
-            NUM_TRAIN,
-            None,
-            None,
-            cmd_args.refresh_replay,
-            device,
+            cmd_args.replay_dir_aug,
             num_workers=exp_cfg.num_workers,
-            only_train=True,
             sample_distribution_mode=exp_cfg.sample_distribution_mode,
-            only_data_gen=False,
             image_size=cmd_args.data_image_size,
-            other_lang_path=cmd_args.other_lang_path
         )
         train_dataset_aug, _, _ = get_dataset_func_aug()
         train_dataset_iter_aug = iter(train_dataset_aug)
         t_end = time.time()
-        print("Created Augment Dataset. Time Cost: {} minutes".format((t_end - t_start) / 60.0))
+        print0("Created Augment Dataset. Time Cost: {} minutes".format((t_end - t_start) / 60.0))
 
 
         if exp_cfg.agent == "our":
@@ -112,9 +93,7 @@ class ExampleTrainer(DDPTrainer):
             mvt_cfg.feat_dim = get_num_feat(exp_cfg.peract)
             mvt_cfg.freeze()
             rvt = MVT(
-                lang_model_name=exp_cfg.rvt.lang_model_name,
-                add_failure_head=exp_cfg.rvt.add_failure_head,
-                failure_head_dim=exp_cfg.rvt.failure_head_dim,
+                lang_model_name=exp_cfg.lang_model_name,
                 renderer_device=device,
                 **mvt_cfg,
             ).to(device)
@@ -129,8 +108,9 @@ class ExampleTrainer(DDPTrainer):
                 cameras=CAMERAS,
                 log_dir=f"{log_dir}/test_run/",
                 cos_dec_max_step=EPOCHS * TRAINING_ITERATIONS,
+                lang_model_name=exp_cfg.lang_model_name,
                 image_size=exp_cfg.image_size,
-                mix_ratio=exp_cfg.mix_ratio,
+                lang_level=exp_cfg.lang_level,
                 **exp_cfg.peract,
                 **exp_cfg.rvt,
             )
@@ -142,39 +122,35 @@ class ExampleTrainer(DDPTrainer):
         start_epoch = 0
         end_epoch = EPOCHS
         if exp_cfg.resume != "":
-            agent_path = exp_cfg.resume
-            print(f"Recovering model and checkpoint from {exp_cfg.resume}")
-            epoch = load_agent(agent_path, agent, only_epoch=False, finetuning=exp_cfg.finetuning, continue_epoch=exp_cfg.continue_epoch, initial_choice=cmd_args.initial_choice)
-            if exp_cfg.continue_epoch:
-                # continue to train from the last epoch of the loaded model
-                start_epoch = epoch + 1
+            print0(f"Recovering model and checkpoint from {exp_cfg.resume}")
+            load_agent(exp_cfg.resume, agent)
         dist.barrier()
 
         if world_rank == 0:
             dump_log(exp_cfg, mvt_cfg, cmd_args, log_dir)
             tb = TensorboardManager(log_dir)
 
-        print("Start training ...", flush=True)
+        print0("Start training ...", flush=True)
         i = start_epoch
         while True:
             if i == end_epoch:
                 break
-            print(f"Rank [{world_rank}], Epoch [{i}]: Training on train dataset")
+            print0(f"Rank [{world_rank}], Epoch [{i}]: Training on train dataset")
             out = train(agent, train_dataset_iter_aug, TRAINING_ITERATIONS, world_rank)
 
             if world_rank == 0:
                 tb.update("train", i, out)
                 if i > EPOCHS-5:
-                    print(f"Saving model {log_dir}/model_{i}.pth ...")
+                    print0(f"Saving model {log_dir}/model_{i}.pth ...")
                     save_agent(agent, f"{log_dir}/model_{i}.pth", i)
                     model_abspath = os.path.abspath(f"{log_dir}/model_{i}.pth")
                     os.system(f"ln -sf {model_abspath} {log_dir}/model_last.pth")
-                    print("Model saved.")
+                    print0("Model saved.")
             i += 1
 
         if world_rank == 0:
             tb.close()
-            print("[Finish]")
+            print0("[Finish]")
 
 
 
@@ -212,7 +188,9 @@ def train(agent, data_iter_aug, training_iterations, rank=0):
         
         batch["tasks"] = raw_batch["tasks"]
         batch["demo"] = raw_batch["demo"]
-        batch["lang_goal"] = raw_batch["lang_goal"]
+        batch["task_goal"] = raw_batch["task_goal"]
+        batch["rich_inst"] = raw_batch["rich_inst"]
+        batch["simp_inst"] = raw_batch["simp_inst"]
         update_args = {
             "step": iteration,
         }

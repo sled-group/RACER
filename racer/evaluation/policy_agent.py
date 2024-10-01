@@ -6,7 +6,9 @@ import torch
 from yarr.agents.agent import ActResult
 
 from racer.evaluation.utils import ROLLOUT_IMAGE_SIZE
-from racer.utils.racer_utils import CAMERAS, load_agent
+from racer.utils.racer_utils import CAMERAS, load_agent, SCENE_BOUNDS
+import racer.rvt.models.rvt_agent as rvt_agent
+from racer.rvt.mvt.mvt_v2 import MVT
 
 
 class Agent:
@@ -31,10 +33,11 @@ class ModelRVTAgent(Agent):
         model_path: str, 
         device: int,
         use_full_langlen: bool = False,
-        is_real_robot: bool = False,
+        lm_addr: str = None,
 
     ):
         self.model_path = model_path
+        self.lm_addr = lm_addr
         self.device = f"cuda:{device}" if torch.cuda.is_available() else "cpu"
 
         self.use_full_langlen = use_full_langlen
@@ -59,23 +62,12 @@ class ModelRVTAgent(Agent):
         self.image_size = exp_cfg.image_size
         
         print(f"build model from {model_path}")
-        print(f"use proprio dim: {self.proprio_dim}, image size: {self.image_size}")
         
-        from racer.rvt.mvt.mvt_v2 import MVT
         rvt = MVT(
-            lang_model_name=exp_cfg.rvt.lang_model_name,
-            add_failure_head=exp_cfg.rvt.add_failure_head,
-            failure_head_dim=exp_cfg.rvt.failure_head_dim,
+            lang_model_name=exp_cfg.lang_model_name,
             renderer_device=self.device,
             **mvt_cfg,
         )
-        
-        if is_real_robot:
-            import racer.rvt.models.rvt_agent_real_robot as rvt_agent
-            from racer.utils.real_robot_utils import SCENE_BOUNDS, CAMERAS
-        else:
-            import racer.rvt.models.rvt_agent as rvt_agent
-            from racer.rvt.utils.peract_utils import CAMERAS, SCENE_BOUNDS
         
         self.agent = rvt_agent.RVTAgent(
             network=rvt.to(self.device),
@@ -92,7 +84,7 @@ class ModelRVTAgent(Agent):
         self.agent.build(training=False, device=self.device)
         load_agent(self.model_path, self.agent)
         self.agent.eval()
-        self.agent.load_lang_model()
+        self.agent.load_lang_model(lm_addr=self.lm_addr)
         self.agent.reset()
         print("Agent Reset. Model loaded.")
     

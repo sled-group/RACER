@@ -6,221 +6,43 @@
 # adapted to support loading from disk for faster initialization time
 
 # Adapted from: https://github.com/stepjam/ARM/blob/main/arm/c2farm/launch_utils.py
+
 from copy import deepcopy
 import json
 import os
 import random
-import torch
 import pickle
-import logging
 import numpy as np
 from typing import List
 
-import clip
 import peract_colab.arm.utils as utils
 
-from rvt.utils.peract_utils import get_stored_demo_aug
 from peract_colab.rlbench.utils import get_stored_demo
-from yarr.utils.observation_type import ObservationElement
-from yarr.replay_buffer.replay_buffer import ReplayElement, ReplayBuffer
+from yarr.replay_buffer.replay_buffer import ReplayBuffer
 from yarr.replay_buffer.uniform_replay_buffer import UniformReplayBuffer
 from rlbench.backend.observation import Observation
-from rlbench.demo import Demo
 
-from rvt.utils.peract_utils import LOW_DIM_SIZE, IMAGE_SIZE, CAMERAS
-from rvt.libs.peract.helpers.demo_loading_utils import keypoint_discovery
-from rvt.libs.peract.helpers.utils import extract_obs
-from racer.utils.lang_enc_utils_v2 import LangModelZoo, ALL_MODELS
+from racer.peract.helpers.utils import extract_obs
+from racer.utils.lang_enc_utils_v2 import LangModelZoo
 
-from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm
+from racer.rvt.utils.peract_utils import (
+    CAMERAS,
+    DEPTH_SCALE,
+    CAMERA_FRONT,
+    CAMERA_LS,
+    CAMERA_RS,
+    CAMERA_WRIST,
+    IMAGE_RGB,
+    IMAGE_DEPTH,
+)
 
-FAILURE_LABELS = {
-    "start": 0,
-    "recoverable_failure": 1,
-    "catastrophic_failure": 2,
-    "success": 3,
-    "ongoing": 4,
-}
+import os
+import pickle
+import numpy as np
+from PIL import Image
 
-
-
-def get_lang_dim(lang_model_name):
-    if lang_model_name == "clip":
-        DIM = 512
-    elif lang_model_name == "llama3":
-        DIM = 4096
-    else:
-        DIM = 1024
-    return DIM
-
-def create_replay(
-    batch_size: int,
-    timesteps: int,
-    disk_saving: bool,
-    cameras: list,
-    voxel_sizes,
-    replay_size=3e5,
-    image_size=IMAGE_SIZE,
-):
-
-    trans_indicies_size = 3 * len(voxel_sizes)
-    rot_and_grip_indicies_size = 3 + 1
-    gripper_pose_size = 7
-    ignore_collisions_size = 1
-    max_token_seq_len = 77
-    failure_cls_size = len(FAILURE_LABELS)
-
-    # low_dim_state
-    observation_elements = []
-    observation_elements.append(
-        ObservationElement("low_dim_state", (LOW_DIM_SIZE,), np.float32)
-    )
-
-    # rgb, depth, point cloud, intrinsics, extrinsics
-    for cname in cameras:
-        observation_elements.append(
-            ObservationElement(
-                "%s_rgb" % cname,
-                (
-                    3,
-                    image_size,
-                    image_size,
-                ),
-                np.float32,
-            )
-        )
-        # observation_elements.append(
-        #     ObservationElement(
-        #         "%s_depth" % cname,
-        #         (
-        #             1,
-        #             image_size,
-        #             image_size,
-        #         ),
-        #         np.float32,
-        #     )
-        # )
-        observation_elements.append(
-            ObservationElement(
-                "%s_point_cloud" % cname,
-                (
-                    3,
-                    image_size,
-                    image_size,
-                ),
-                np.float32,
-            )
-        )  # see pyrep/objects/vision_sensor.py on how pointclouds are extracted from depth frames
-        observation_elements.append(
-            ObservationElement(
-                "%s_camera_extrinsics" % cname,
-                (
-                    4,
-                    4,
-                ),
-                np.float32,
-            )
-        )
-        observation_elements.append(
-            ObservationElement(
-                "%s_camera_intrinsics" % cname,
-                (
-                    3,
-                    3,
-                ),
-                np.float32,
-            )
-        )
-
-    # discretized translation, discretized rotation, discrete ignore collision, 6-DoF gripper pose, and pre-trained language embeddings
-    observation_elements.extend(
-        [
-            ReplayElement("trans_action_indicies", (trans_indicies_size,), np.int32),
-            ReplayElement(
-                "rot_grip_action_indicies", (rot_and_grip_indicies_size,), np.int32
-            ),
-            ReplayElement("ignore_collisions", (ignore_collisions_size,), np.int32),
-            ReplayElement("gripper_pose", (gripper_pose_size,), np.float32),
-            ReplayElement(
-                "lang_goal", (1,), object
-            ),  # language goal string for debugging and visualization, 
-            ReplayElement(
-                "fine_gpt_lang_goal", (1,), object
-            ), 
-            ReplayElement(
-                "fine_heuristic_lang_goal", (1,), object
-            ), 
-            ReplayElement(
-                "failure_labels", (1,), np.int32
-            ),
-        ]
-    )
-    
-    for lang_model_name in ALL_MODELS:
-        observation_elements.extend([
-            ReplayElement(
-                "lang_goal_embs_%s" % lang_model_name,
-                (
-                    max_token_seq_len,
-                    get_lang_dim(lang_model_name),
-                ),  # extracted from CLIP's language encoder
-                np.float32,
-            ),
-            ReplayElement(
-                "lang_len_%s" % lang_model_name, (1,), np.int32
-            ),  # length of language tokens
-            ReplayElement(
-                "fine_gpt_lang_goal_embs_%s" % lang_model_name,
-                (
-                    max_token_seq_len,
-                    get_lang_dim(lang_model_name),
-                ),
-                np.float32,
-            ),
-            ReplayElement(
-                "fine_gpt_lang_len_%s" % lang_model_name, (1,), np.int32
-            ),  # length of language tokens for fine-grained language instructions
-            ReplayElement(
-                "fine_heuristic_lang_goal_embs_%s" % lang_model_name,
-                (
-                    max_token_seq_len,
-                    get_lang_dim(lang_model_name),
-                ),
-                np.float32,
-            ),
-            ReplayElement(
-                "fine_heuristic_lang_len_%s" % lang_model_name, (1,), np.int32
-            ),  # length of language tokens for fine-grained language instructions
-        ]
-    )
-            
-
-    extra_replay_elements = [
-        ReplayElement("demo", (), bool),
-        ReplayElement("keypoint_idx", (), int),
-        ReplayElement("episode_idx", (), int),
-        ReplayElement("keypoint_frame", (), int),
-        ReplayElement("next_keypoint_frame", (), int),
-        ReplayElement("sample_frame", (), int),
-    ]
-
-    replay_buffer = (
-        UniformReplayBuffer(  # all tuples in the buffer have equal sample weighting
-            disk_saving=disk_saving,
-            batch_size=batch_size,
-            timesteps=timesteps,
-            replay_capacity=int(replay_size),
-            action_shape=(8,),  # 3 translation + 4 rotation quaternion + 1 gripper open
-            action_dtype=np.float32,
-            reward_shape=(),
-            reward_dtype=np.float32,
-            update_horizon=1,
-            observation_elements=observation_elements,
-            extra_replay_elements=extra_replay_elements,
-        )
-    )
-    return replay_buffer
+from rlbench.backend.utils import image_to_float_array
+from pyrep.objects import VisionSensor
 
 
 # discretize translation, rotation, gripper open, and ignore collision actions
@@ -268,6 +90,114 @@ def padding_embs(embs, max_len=77):
 
 
 
+
+def downsample_array(array, factor):
+    if factor == 1:
+        return array
+    return array[1::factor, 1::factor]
+
+def scale_intrinsics(intrinsics, factor):
+    intrinsics[:2, :] /= factor
+    return intrinsics
+
+def get_stored_demo_aug(data_path, index, reference_demo):
+    np.set_printoptions(precision=4, suppress=True)
+
+    episode_path = os.path.join(data_path, str(index))
+  
+    # low dim pickle file
+    with open(os.path.join(episode_path, "obs.pkl"), 'rb') as f:
+        _obs = pickle.load(f)
+
+    reference_obs = reference_demo
+
+    obs = {}
+    for k in _obs.keys():
+        if os.path.exists(os.path.join(episode_path, '%s_%s' % (CAMERA_FRONT, IMAGE_RGB), "%s.png" % k)):
+            obs[k] = _obs[k]
+    
+    for key in obs.keys():
+        if "expert" in key or "dense" in key:
+            key_id = int(key.split('_')[0])            
+            if "put_groceries_in_cupboard" in data_path: # hot fix for strange data error
+                if obs[key].ignore_collisions != reference_obs[key_id].ignore_collisions \
+                        and obs[key].ignore_collisions == 0:
+                    pass
+                else:
+                    obs[key].ignore_collisions = reference_obs[key_id].ignore_collisions
+            else:
+                obs[key].ignore_collisions = reference_obs[key_id].ignore_collisions
+            
+            obs[key].gripper_open = reference_obs[key_id].gripper_open # use original gripper open just for safe
+            obs[key].gripper_pose = reference_obs[key_id].gripper_pose # use original gripper pose just for safe
+
+        obs[key].front_rgb = np.array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_FRONT, IMAGE_RGB), "%s.png" % key)))
+        # image_size = obs[key].front_rgb.shape[0]
+        # factor = image_size // IMAGE_SIZE
+        # print("factor", factor, "image_size", image_size, "IMAGE_SIZE", IMAGE_SIZE)
+        # TODO: change this if you want to use other image size
+        factor = 1
+        
+        obs[key].front_rgb = downsample_array(obs[key].front_rgb, factor)
+
+
+        obs[key].left_shoulder_rgb = np.array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_LS, IMAGE_RGB), "%s.png" % key)))
+        obs[key].left_shoulder_rgb = downsample_array(obs[key].left_shoulder_rgb, factor)
+
+        obs[key].right_shoulder_rgb = np.array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_RS, IMAGE_RGB), "%s.png" % key)))
+        obs[key].right_shoulder_rgb = downsample_array(obs[key].right_shoulder_rgb, factor)
+        
+        obs[key].wrist_rgb = np.array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_WRIST, IMAGE_RGB), "%s.png" % key)))
+        obs[key].wrist_rgb = downsample_array(obs[key].wrist_rgb, factor)
+
+        obs[key].front_depth = image_to_float_array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_FRONT, IMAGE_DEPTH), "%s.png" % key)), DEPTH_SCALE)
+        obs[key].front_depth = downsample_array(obs[key].front_depth, factor)
+        near = obs[key].misc['%s_camera_near' % (CAMERA_FRONT)]
+        far = obs[key].misc['%s_camera_far' % (CAMERA_FRONT)]
+        obs[key].front_depth = near + obs[key].front_depth * (far - near)
+
+        obs[key].left_shoulder_depth = image_to_float_array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_LS, IMAGE_DEPTH), "%s.png" % key)), DEPTH_SCALE)
+        obs[key].left_shoulder_depth = downsample_array(obs[key].left_shoulder_depth, factor)
+        near = obs[key].misc['%s_camera_near' % (CAMERA_LS)]
+        far = obs[key].misc['%s_camera_far' % (CAMERA_LS)]
+        obs[key].left_shoulder_depth = near + obs[key].left_shoulder_depth * (far - near)
+
+        obs[key].right_shoulder_depth = image_to_float_array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_RS, IMAGE_DEPTH), "%s.png" % key)), DEPTH_SCALE)
+        obs[key].right_shoulder_depth = downsample_array(obs[key].right_shoulder_depth, factor)
+        near = obs[key].misc['%s_camera_near' % (CAMERA_RS)]
+        far = obs[key].misc['%s_camera_far' % (CAMERA_RS)]
+        obs[key].right_shoulder_depth = near + obs[key].right_shoulder_depth * (far - near)
+
+        obs[key].wrist_depth = image_to_float_array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_WRIST, IMAGE_DEPTH), "%s.png" % key)), DEPTH_SCALE)
+        obs[key].wrist_depth = downsample_array(obs[key].wrist_depth, factor)
+        near = obs[key].misc['%s_camera_near' % (CAMERA_WRIST)]
+        far = obs[key].misc['%s_camera_far' % (CAMERA_WRIST)]
+        obs[key].wrist_depth = near + obs[key].wrist_depth * (far - near)
+        
+        # scale down intrinsic matrix with factor
+        scale_intrinsics(obs[key].misc['front_camera_intrinsics'], factor)
+        scale_intrinsics(obs[key].misc['left_shoulder_camera_intrinsics'], factor)
+        scale_intrinsics(obs[key].misc['right_shoulder_camera_intrinsics'], factor)
+        scale_intrinsics(obs[key].misc['wrist_camera_intrinsics'], factor)
+        
+
+        obs[key].front_point_cloud = VisionSensor.pointcloud_from_depth_and_camera_params(obs[key].front_depth, 
+                                                                                        obs[key].misc['front_camera_extrinsics'],
+                                                                                        obs[key].misc['front_camera_intrinsics'])
+        obs[key].left_shoulder_point_cloud = VisionSensor.pointcloud_from_depth_and_camera_params(obs[key].left_shoulder_depth, 
+                                                                                                obs[key].misc['left_shoulder_camera_extrinsics'],
+                                                                                                obs[key].misc['left_shoulder_camera_intrinsics'])
+        obs[key].right_shoulder_point_cloud = VisionSensor.pointcloud_from_depth_and_camera_params(obs[key].right_shoulder_depth, 
+                                                                                                obs[key].misc['right_shoulder_camera_extrinsics'],
+                                                                                                obs[key].misc['right_shoulder_camera_intrinsics'])
+        obs[key].wrist_point_cloud = VisionSensor.pointcloud_from_depth_and_camera_params(obs[key].wrist_depth, 
+                                                                                            obs[key].misc['wrist_camera_extrinsics'],
+                                                                                            obs[key].misc['wrist_camera_intrinsics'])
+        
+    
+ 
+    return obs
+
 def _add_keypoints_to_replay(
     replay: UniformReplayBuffer,
     task: str,
@@ -306,35 +236,21 @@ def _add_keypoints_to_replay(
     # print("rot_grip_indicies", rot_grip_indicies)
     # print("ignore_collisions", ignore_collisions)
 
-    failure_label = subgoal_tm1["label"]
-    fine_grained_heuristic_lang = subgoal_tm1["heuristic-lang"].lower().strip()
     HIGH_LEVEL_GOAL_TEMPLATE = "Task goal: {}."
     LOW_LEVEL_GOAL_TEMPLATE = "{}\nCurrent instruction: {}"
     high_level_task_goal = HIGH_LEVEL_GOAL_TEMPLATE.format(task_goal)
-    fine_grained_heuristic_lang = LOW_LEVEL_GOAL_TEMPLATE.format(high_level_task_goal, fine_grained_heuristic_lang)
 
-    assert isinstance(subgoal_tm1["gpt-lang"], list), "please check the data"
-
-
-    lang_model_zoo.send_task(text_id="lang_goal_embs", text=high_level_task_goal)
-    lang_model_zoo.send_task(text_id="fine_heuristic_lang_goal_embs", text=fine_grained_heuristic_lang)
-
+    lang_model_zoo.send_task(text_id="task_goal_embs", text=high_level_task_goal)
     lang_emb_dict = {}
     results = lang_model_zoo.get_results()
     for res in results:
         lang_model_name = res["model"]
         text_id = res["text_id"]
         lang_emb_dict["%s_%s" % (text_id, lang_model_name)] = padding_embs(np.array(res["embeddings"][0], dtype=np.float32))
-        lang_emb_dict["%s_%s" % (text_id.replace("goal_embs", "len"), lang_model_name)] = np.array([res["token_len"]], dtype=np.int32)
+        lang_emb_dict["%s_%s" % (text_id.replace("_embs", "_len"), lang_model_name)] = np.array([res["token_len"]], dtype=np.int32)
 
     
-    for fine_grained_gpt_lang in subgoal_tm1["gpt-lang"]:
-        fine_grained_gpt_lang = fine_grained_gpt_lang.lower().strip()
-        fine_grained_gpt_lang = LOW_LEVEL_GOAL_TEMPLATE.format(high_level_task_goal, fine_grained_gpt_lang)
-
-        # query language embeddings through API
-        lang_model_zoo.send_task(text_id="fine_gpt_lang_goal_embs", text=fine_grained_gpt_lang)
-
+    for rich_inst, simp_inst in zip(subgoal_tm1["rich-lang"], subgoal_tm1["simp-lang"]):
         # expert to expert
         reward = float(terminal) * 1.0 if terminal else 0
 
@@ -346,22 +262,35 @@ def _add_keypoints_to_replay(
             episode_length=30,
         )
         obs_dict["ignore_collisions"] = np.array([ignore_collisions], dtype=np.int32)
-        obs_dict["failure_labels"] = np.array([FAILURE_LABELS[failure_label]], dtype=np.int32)
 
         # remove depth to save space
         for cname in CAMERAS:
             del obs_dict["%s_depth" % cname]
-
-
-        # get language embeddings results        
+        
+        rich_inst = rich_inst.lower().strip()
+        rich_inst = LOW_LEVEL_GOAL_TEMPLATE.format(high_level_task_goal, rich_inst)
+        lang_model_zoo.send_task(text_id="rich_inst_embs", text=rich_inst) # query language embeddings through API
         results = lang_model_zoo.get_results()
         for res in results:
             lang_model_name = res["model"]
             text_id = res["text_id"]
             obs_dict["%s_%s" % (text_id, lang_model_name)] = padding_embs(np.array(res["embeddings"][0], dtype=np.float32))
             obs_dict["%s_%s" % (text_id.replace("goal_embs", "len"), lang_model_name)] = np.array([res["token_len"]], dtype=np.int32)
-        
         obs_dict.update(lang_emb_dict)
+        
+        
+        
+        simp_inst = simp_inst.lower().strip()
+        simp_inst = LOW_LEVEL_GOAL_TEMPLATE.format(high_level_task_goal, simp_inst)
+        lang_model_zoo.send_task(text_id="simp_inst_embs", text=simp_inst)
+        results = lang_model_zoo.get_results()
+        for res in results:
+            lang_model_name = res["model"]
+            text_id = res["text_id"]
+            obs_dict["%s_%s" % (text_id, lang_model_name)] = padding_embs(np.array(res["embeddings"][0], dtype=np.float32))
+            obs_dict["%s_%s" % (text_id.replace("goal_embs", "len"), lang_model_name)] = np.array([res["token_len"]], dtype=np.int32)
+        obs_dict.update(lang_emb_dict)
+        
 
         others = {
             "demo": is_expert_step,
@@ -375,9 +304,9 @@ def _add_keypoints_to_replay(
             "trans_action_indicies": trans_indicies,
             "rot_grip_action_indicies": rot_grip_indicies,
             "gripper_pose": obs_tp1.gripper_pose,
-            "lang_goal": np.array([task_goal], dtype=object),
-            "fine_gpt_lang_goal": np.array([fine_grained_gpt_lang], dtype=object),
-            "fine_heuristic_lang_goal": np.array([fine_grained_heuristic_lang], dtype=object),
+            "task_goal": np.array([task_goal], dtype=object),
+            "rich_inst": np.array([rich_inst], dtype=object),
+            "simp_inst": np.array([simp_inst], dtype=object)
         }
 
         others.update(final_obs)
@@ -397,57 +326,32 @@ def _add_keypoints_to_replay(
     return others
 
 
-# PUT_GROCERIES= {1:64, 2:54, 5:74, 6:63, 12:79, 16:62, 20:85, 21:86, 28:65, 30:80, 31:83, 32:58, 35:75, 41:64, 42:58, 
-# 98:48, 97:47, 93:54, 91:78, 84:60,83:64, 69:76, 67:68,65:66,62:77,61:75,60:58,55:48,53:70, 52:54} # training set
-# # PUT_GROCERIES = {1:91, 3:90, 6:73, 12:76, 13:44, 15:81,16:81, 17:54, 20:66, 23:80} # val set
-
 def fill_replay(
     replay: ReplayBuffer,
     task: str,
     task_replay_storage_folder: str,
-    start_idx: int,
-    num_demos: int,
-    demo_augmentation: bool,
-    demo_augmentation_every_n: int,
-    cameras: List[str],
     rlbench_scene_bounds: List[float],  # AKA: DEPTH0_BOUNDS
     voxel_sizes: List[int],
     rotation_resolution: int,
     crop_augmentation: bool,
-    data_path: str,
-    reference_data_path: str,
-    episode_folder: str,
-    variation_desriptions_pkl: str,
+    data_path_train: str,
+    reference_data_path_train: str,
+    data_path_val: str,
+    reference_data_path_val: str,
     lang_model_zoo=None,
-    device="cpu",
-    PUT_GROCERIES=None
 ):
-    disk_exist = False
-    if replay._disk_saving:
-        if os.path.exists(task_replay_storage_folder):
-            print(
-                "[Info] Replay dataset already exists in the disk: {}".format(
-                    task_replay_storage_folder
-                ),
-                flush=True,
-            )
-            disk_exist = True
-        else:
-            print("\t saving to disk: %s" % task_replay_storage_folder)
-            os.makedirs(task_replay_storage_folder, exist_ok=True)
-
-    if disk_exist:
-        replay.recover_from_disk(task, task_replay_storage_folder)
-    else:
-        if lang_model_zoo is None:
-            assert False, "please choose the right replay buffer for model training, or use data_gen.py to generate data first"
-        print("Filling replay in %s ... " % task_replay_storage_folder)
-        for d_idx in range(start_idx, start_idx + num_demos):
-            episode_path = os.path.join(data_path, str(d_idx))
-            # expert failures
-            if not os.path.exists(episode_path):
-                continue
-            # missing language description json
+        
+    print("Filling replay in %s ... " % task_replay_storage_folder)
+    for data_path, reference_data_path in [
+        (data_path_train, reference_data_path_train),
+        (data_path_val, reference_data_path_val),
+    ]:          
+    
+        print(sorted(os.listdir(data_path), key=lambda x: int(x.split("_")[0])))
+        for ep_name in sorted(os.listdir(data_path), key=lambda x: int(x.split("_")[0])):
+            d_idx = int(ep_name.split("_")[0])
+            
+            # missing language description json, skip
             if not os.path.exists(os.path.join(data_path, str(d_idx), "language_description.json")):
                 continue
 
@@ -455,30 +359,28 @@ def fill_replay(
             # from original data
             reference_demo = get_stored_demo(data_path=reference_data_path, index=d_idx)
             # from augmented data
-            demo = get_stored_demo_aug(data_path=data_path, index=d_idx, reference_demo=reference_demo)
-
+            demo = get_stored_demo_aug(data_path=data_path, index=d_idx, reference_demo=reference_demo)            
             # get language goal from disk
             with open(os.path.join(data_path, str(d_idx), "language_description.json"), "r") as f:
                 language_description = json.load(f)
-
-            # TODO: compare language_description key and demo key
             
             # transition
-            # type 1: expert to expert
+            # type 1: expert to expert, i.e., expert transition
             # type 2: recoverable_failure to intermediate, if has
-            # type 3: recoverable_failure to expert
-
+            # type 3: recoverable_failure to expert, i.e., recovery transition
+            
             task_goal = language_description["task_goal"]
             if isinstance(task_goal, list):
                 task_goal = task_goal[0] # take easiest one
             expert_step_keys = [s for s in list(language_description["subgoal"].keys()) if "expert" in s]
             expert_step_keys = sorted(expert_step_keys, key=lambda x: int(x.split("_")[0]))
-
+            print(expert_step_keys)
             return_dict = {}
             
             for expert_key_idx in range(1, len(expert_step_keys)):
+                input("Press Enter to continue...")
                 key_id = int(expert_step_keys[expert_key_idx].split('_')[0])
-                if key_id < 10: continue
+                if key_id < 10: continue # skip the first 10 dense steps since it's very unlikely to be an expert step
 
                 current_expert_key = expert_step_keys[expert_key_idx]
                 subgoal_tp1 = language_description["subgoal"][current_expert_key]
@@ -489,29 +391,10 @@ def fill_replay(
                 obs_tm1 = demo[previous_expert_key]
 
                 current_subgoal = deepcopy(subgoal_tp1)
-
                 terminal = expert_key_idx == len(expert_step_keys) - 1
-
-                if "put_groceries_in_cupboard" in data_path and not terminal and PUT_GROCERIES: # fix
-                    if d_idx in PUT_GROCERIES:
-                        if key_id < PUT_GROCERIES[d_idx]: 
-                            continue # skip uneccessary steps
-                        if key_id == PUT_GROCERIES[d_idx]:
-                            demo[current_expert_key].ignore_collisions = np.array(0.)
-                            subgoal_tm1 = language_description["subgoal"]["0_expert"]
-                            obs_tm1 = demo["0_expert"]
-
-                        align_step = PUT_GROCERIES[d_idx]
-                    else:
-                        align_step = int(expert_step_keys[1].split('_')[0])
-
-                    # fix gripper_open
-                    if key_id > align_step:
-                        if demo[current_expert_key].gripper_open == 1.:
-                            print(key_id, "this is a mistake, please check the data")
-                            demo[current_expert_key].gripper_open = 0.
-
                 prob = random.random()
+                
+                # add some randome steps
                 if prob < 0.7 or expert_key_idx == 1:
                     time_step = expert_key_idx
                 elif 0.7<=prob <0.85:
@@ -520,7 +403,7 @@ def fill_replay(
                     time_step = expert_key_idx + 2
 
                 # previous expert to current expert
-                # print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])   
+                print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])   
                 return_dict = _add_keypoints_to_replay(
                     replay,
                     task,
@@ -542,7 +425,13 @@ def fill_replay(
                     episode_idx=d_idx,
                 )
 
-                neglected_last_step = ["insert_onto_square_peg", "meat_off_grill", "place_shape_in_shape_sorter",  "put_item_in_drawer", "turn_tap"]
+                neglected_last_step = [
+                    "insert_onto_square_peg", 
+                    "meat_off_grill", 
+                    "place_shape_in_shape_sorter",  
+                    "put_item_in_drawer",
+                    "turn_tap"
+                ] # no need to augment failures for the last steps in those tasks, too unnatural
 
                 if "augmentation" in current_subgoal and current_subgoal["augmentation"]:
                     if "put_groceries_in_cupboard" in  data_path and expert_key_idx >= len(expert_step_keys) - 2:
@@ -582,7 +471,7 @@ def fill_replay(
                             # mistake to current expert
                             pass
 
-                        # print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])                            
+                        print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])                            
                         return_dict = _add_keypoints_to_replay(
                             replay,
                             task,
@@ -613,7 +502,7 @@ def fill_replay(
                             subgoal_tp1 = language_description["subgoal"][current_expert_key]
 
 
-                            # print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])   
+                            print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])   
                             return_dict = _add_keypoints_to_replay(
                                 replay,
                                 task,

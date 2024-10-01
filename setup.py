@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 requirements = [
-    "numpy",
+    "numpy==1.24.3",
     "click",
     "scipy",
     "einops",
@@ -16,6 +16,7 @@ requirements = [
     "matplotlib",
     "numpy-quaternion==2023.0.2",
     "clip @ git+https://github.com/openai/CLIP.git",
+    "fastapi==0.111.0"
 ]
 
 __version__ = "0.0.1"

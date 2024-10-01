@@ -57,8 +57,11 @@ def make_args():
 
     parser.add_argument("--retry-for-InvalidActionError", type=int, default=5)
     parser.add_argument("--append-text-to-gif", action="store_true")
+    
+    # LM service
+    parser.add_argument("--lm-address", type=str, default="http://localhost:8000")
 
-    # Llava VLM agent
+    # Llava VLM service
     parser.add_argument("--vlm-address", type=str, default="http://localhost:21002")
     parser.add_argument(
         "--use-vlm", action="store_true"
@@ -100,7 +103,8 @@ class Evaluator:
         self.policy_executor = ModelRVTAgent(
             model_path=model_path, 
             device=args.device, 
-            use_full_langlen=args.use_full_langlen
+            use_full_langlen=args.use_full_langlen,
+            lm_addr=args.lm_address
         )
 
         self.use_vlm = args.use_vlm
@@ -482,7 +486,7 @@ class Evaluator:
         if self.instruction is None: # first turn
             return TEMPLATE_first_step.format(task_goal=self.task_goal)
         else:
-            robot_delta_state = get_robot_delta_state(self.prev_obs, self.cur_obs)
+            robot_delta_state, _ = get_robot_delta_state(self.prev_obs, self.cur_obs)
             return TEMPLATE_other_step.format(task_goal=self.task_goal, previous_instruction=self.instruction, robot_delta_state=robot_delta_state)
 
     @staticmethod

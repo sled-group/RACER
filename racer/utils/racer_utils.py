@@ -1,8 +1,17 @@
 import torch
 
 from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
 
 CAMERAS = ["front", "left_shoulder", "right_shoulder", "wrist"]
+SCENE_BOUNDS = [
+    -0.3,
+    -0.5,
+    0.6,
+    0.7,
+    0.5,
+    1.6,
+]  # [x_min, y_min, z_min, x_max, y_max, z_max] - the metric volume to be voxelized
 
 RLBENCH_TASKS = [
     "put_item_in_drawer",
@@ -62,3 +71,11 @@ def load_agent(agent_path, agent):
                 if k not in model_state:
                     print(f"Key {k} not found in model state")
             model.load_state_dict(checkpoint["model_state"], strict=False)
+
+
+
+def print0(*args, **kwargs):
+    if dist.is_initialized() and dist.get_rank() == 0:
+        print(*args, **kwargs)
+    else:
+        print(*args, **kwargs)

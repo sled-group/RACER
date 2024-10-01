@@ -44,16 +44,13 @@ _C.rvt.gt_hm_sigma = 1.5
 _C.rvt.img_aug = 0.1
 _C.rvt.place_with_mean = True
 _C.rvt.move_pc_in_bound = True
-_C.rvt.lang_model_name = "clip"
-_C.rvt.add_failure_head = False
-_C.rvt.failure_head_dim = 5 # [start, ongoing, recoverable_failure, success, catastrophic_failure]
-_C.rvt.use_lang_type = "gpt" # ["task", "heuristic", "gpt"]
-_C.rvt.lang_level = 3 # 0: no lang, 1: simple , 2: medium, 3: complex
 
 # arguments present in peract official
 _C.peract_official = CN()
 _C.peract_official.cfg_path = "configs/peract_official_config.yaml"
 
+_C.lang_model_name = "clip"
+_C.lang_level = "task" # rich, simple, task
 
 def get_cfg_defaults():
     """Get a yacs CfgNode object with default values for my_project."""
