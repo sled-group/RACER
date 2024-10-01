@@ -75,6 +75,8 @@ class ModelRVTAgent(Agent):
             add_lang=mvt_cfg.add_lang,
             scene_bounds=SCENE_BOUNDS,
             cameras=CAMERAS,
+            lang_model_name=exp_cfg.lang_model_name,
+            lang_level=exp_cfg.lang_level,
             **exp_cfg.peract,
             **exp_cfg.rvt,
         )
@@ -111,7 +113,10 @@ class ModelRVTAgent(Agent):
     def act(self, input_obs: dict, input_lang_str: str) -> np.ndarray:
         down_sampled_obs = self.preprocess_obs_dict(input_obs)
         obs_tensor = self._wrap_obs(down_sampled_obs)
-        if self.use_full_langlen: assert self.agent.lang_model_name == "clip" 
+        if self.use_full_langlen: 
+            assert self.agent.lang_model_name == "clip" 
+        else:
+            assert self.agent.lang_model_name == "t5-11b"
         # original rvt uses clip with full langlen 77
         act_result: ActResult = self.agent.act(
             step=0, observation=obs_tensor, input_lang_str=input_lang_str,

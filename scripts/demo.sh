@@ -1,3 +1,3 @@
 CUDA_VISIBLE_DEVICES=0,1 python racer/gradio_demo/run.py \
-    --lm-address http://141.212.106.177:8000/encode/ \
-    --vlm-address http://141.212.106.177:21002 
+    --lm-address http://141.212.110.118:8000/encode/ \
+    --vlm-address http://141.212.110.118:21002 

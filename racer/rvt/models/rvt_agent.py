@@ -787,7 +787,7 @@ class RVTAgent:
     @torch.no_grad()
     def act(
         self, step: int, observation: dict, deterministic=True, pred_distri=False,
-        input_lang_str = None, use_full_langlen=False, use_lang_v2=False
+        input_lang_str = None, use_full_langlen=False
     ) -> ActResult:
         if self.add_lang:
             # lang_goal_tokens = observation.get("lang_goal_tokens", None).long()
