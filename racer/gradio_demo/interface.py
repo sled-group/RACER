@@ -463,4 +463,4 @@ class GradioInterface:
 
             save_btn.click(self.dump_session, [chatbot], [chatbot])
 
-        demo.launch(server_name="0.0.0.0", server_port=7883)
+        demo.launch(server_name="0.0.0.0", server_port=7884)

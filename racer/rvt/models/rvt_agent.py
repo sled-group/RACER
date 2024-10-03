@@ -564,17 +564,6 @@ class RVTAgent:
         lang_goal_embs = replay_sample[lang_goal_embs_key][:, -1].float()
         lang_lens = replay_sample[lang_lens_key][:, -1].int()
         tasks = replay_sample["tasks"]
-
-
-        # # a few change to use task goal only instuctions to train
-        # taskgoal_only_lang_goal_embs_key = "lang_goal_embs_%s" % self.lang_model_name
-        # taskgoal_only_lang_lens_key = "lang_len_%s" % self.lang_model_name
-        # taskgoal_only_lang_goal_embs = replay_sample[taskgoal_only_lang_goal_embs_key][:, -1].float()
-        # taskgoal_only_lang_lens = replay_sample[taskgoal_only_lang_lens_key][:, -1].int()
-        # for idx, is_demo in enumerate(replay_sample["demo"]):
-        #     if is_demo and random.random() < self.mix_ratio:
-        #         lang_goal_embs[idx] = taskgoal_only_lang_goal_embs[idx]
-        #         lang_lens[idx] = taskgoal_only_lang_lens[idx]
         
 
         if self._net_mod.proprio_dim == 4:
@@ -589,198 +578,198 @@ class RVTAgent:
 
         replay_sample = self.preprocess_resolution(replay_sample)
 
-        # obs, pcd = peract_utils._preprocess_inputs(replay_sample, self.cameras)
+        obs, pcd = peract_utils._preprocess_inputs(replay_sample, self.cameras)
 
-        # with torch.no_grad():
-        #     pc, img_feat = rvt_utils.get_pc_img_feat(
-        #         obs,
-        #         pcd,
-        #     )# (N,3) (N,3)
+        with torch.no_grad():
+            pc, img_feat = rvt_utils.get_pc_img_feat(
+                obs,
+                pcd,
+            )# (N,3) (N,3)
 
-        #     if self._transform_augmentation and backprop:
-        #         action_trans_con, action_rot, pc = apply_se3_aug_con(
-        #             pcd=pc,
-        #             action_gripper_pose=action_gripper_pose,
-        #             bounds=torch.tensor(self.scene_bounds),
-        #             trans_aug_range=torch.tensor(self._transform_augmentation_xyz),
-        #             rot_aug_range=torch.tensor(self._transform_augmentation_rpy),
-        #         )
-        #         action_trans_con = torch.tensor(action_trans_con).to(pc.device)
-        #         action_rot = torch.tensor(action_rot).to(pc.device)
+            if self._transform_augmentation and backprop:
+                action_trans_con, action_rot, pc = apply_se3_aug_con(
+                    pcd=pc,
+                    action_gripper_pose=action_gripper_pose,
+                    bounds=torch.tensor(self.scene_bounds),
+                    trans_aug_range=torch.tensor(self._transform_augmentation_xyz),
+                    rot_aug_range=torch.tensor(self._transform_augmentation_rpy),
+                )
+                action_trans_con = torch.tensor(action_trans_con).to(pc.device)
+                action_rot = torch.tensor(action_rot).to(pc.device)
 
-        #     # TODO: vectorize
-        #     action_rot = action_rot.cpu().numpy()
-        #     for i, _action_rot in enumerate(action_rot):
-        #         _action_rot = aug_utils.normalize_quaternion(_action_rot)
-        #         if _action_rot[-1] < 0:
-        #             _action_rot = -_action_rot
-        #         action_rot[i] = _action_rot
+            # TODO: vectorize
+            action_rot = action_rot.cpu().numpy()
+            for i, _action_rot in enumerate(action_rot):
+                _action_rot = aug_utils.normalize_quaternion(_action_rot)
+                if _action_rot[-1] < 0:
+                    _action_rot = -_action_rot
+                action_rot[i] = _action_rot
 
-        #     pc, img_feat = rvt_utils.move_pc_in_bound(
-        #         pc, img_feat, self.scene_bounds, no_op=not self.move_pc_in_bound
-        #     )
-        #     wpt = [x[:3] for x in action_trans_con]
+            pc, img_feat = rvt_utils.move_pc_in_bound(
+                pc, img_feat, self.scene_bounds, no_op=not self.move_pc_in_bound
+            )
+            wpt = [x[:3] for x in action_trans_con]
 
-        #     wpt_local = []
-        #     rev_trans = []
-        #     for _pc, _wpt in zip(pc, wpt):
-        #         a, b = mvt_utils.place_pc_in_cube(
-        #             _pc,
-        #             _wpt,
-        #             with_mean_or_bounds=self._place_with_mean,
-        #             scene_bounds=None if self._place_with_mean else self.scene_bounds,
-        #         )
-        #         wpt_local.append(a.unsqueeze(0))
-        #         rev_trans.append(b)
+            wpt_local = []
+            rev_trans = []
+            for _pc, _wpt in zip(pc, wpt):
+                a, b = mvt_utils.place_pc_in_cube(
+                    _pc,
+                    _wpt,
+                    with_mean_or_bounds=self._place_with_mean,
+                    scene_bounds=None if self._place_with_mean else self.scene_bounds,
+                )
+                wpt_local.append(a.unsqueeze(0))
+                rev_trans.append(b)
 
-        #     wpt_local = torch.cat(wpt_local, axis=0)
+            wpt_local = torch.cat(wpt_local, axis=0)
 
-        #     # TODO: Vectorize
-        #     pc = [
-        #         mvt_utils.place_pc_in_cube(
-        #             _pc,
-        #             with_mean_or_bounds=self._place_with_mean,
-        #             scene_bounds=None if self._place_with_mean else self.scene_bounds,
-        #         )[0]
-        #         for _pc in pc
-        #     ]
+            # TODO: Vectorize
+            pc = [
+                mvt_utils.place_pc_in_cube(
+                    _pc,
+                    with_mean_or_bounds=self._place_with_mean,
+                    scene_bounds=None if self._place_with_mean else self.scene_bounds,
+                )[0]
+                for _pc in pc
+            ]
 
-        #     bs = len(pc)
-        #     nc = self._net_mod.num_img
-        #     h = w = self._net_mod.img_size
+            bs = len(pc)
+            nc = self._net_mod.num_img
+            h = w = self._net_mod.img_size
 
-        #     if backprop and (self.img_aug != 0):
-        #         img_aug = self.img_aug
-        #     else:
-        #         img_aug = 0
+            if backprop and (self.img_aug != 0):
+                img_aug = self.img_aug
+            else:
+                img_aug = 0
 
-        #     dyn_cam_info = None
+            dyn_cam_info = None
 
-        # out = self._network(
-        #     pc=pc,
-        #     img_feat=img_feat,
-        #     proprio=proprio,
-        #     lang_emb=lang_goal_embs,
-        #     lang_len=lang_lens,
-        #     img_aug=img_aug,
-        # )
+        out = self._network(
+            pc=pc,
+            img_feat=img_feat,
+            proprio=proprio,
+            lang_emb=lang_goal_embs,
+            lang_len=lang_lens,
+            img_aug=img_aug,
+        )
 
-        # q_trans, rot_q, grip_q, collision_q, y_q, pts = self.get_q(
-        #     out, dims=(bs, nc, h, w)
-        # )
+        q_trans, rot_q, grip_q, collision_q, y_q, pts = self.get_q(
+            out, dims=(bs, nc, h, w)
+        )
 
-        # (
-        #     action_rot_x_one_hot,   # (bs, 72)
-        #     action_rot_y_one_hot,   # (bs, 72)
-        #     action_rot_z_one_hot,  # (bs, 72)
-        #     action_grip_one_hot,  # (bs, 2)
-        #     action_collision_one_hot,  # (bs, 2)
-        # ) = self._get_one_hot_expert_actions(
-        #     bs, action_rot, action_grip, action_ignore_collisions, device=self._device
-        # )        
-        # action_trans = self.get_action_trans(
-        #     wpt_local, pts, out, dyn_cam_info, dims=(bs, nc, h, w)
-        # )
+        (
+            action_rot_x_one_hot,   # (bs, 72)
+            action_rot_y_one_hot,   # (bs, 72)
+            action_rot_z_one_hot,  # (bs, 72)
+            action_grip_one_hot,  # (bs, 2)
+            action_collision_one_hot,  # (bs, 2)
+        ) = self._get_one_hot_expert_actions(
+            bs, action_rot, action_grip, action_ignore_collisions, device=self._device
+        )        
+        action_trans = self.get_action_trans(
+            wpt_local, pts, out, dyn_cam_info, dims=(bs, nc, h, w)
+        )
 
-        # loss_log = {}
-        # if backprop:
-        #     # cross-entropy loss
-        #     trans_loss = self._cross_entropy_loss(q_trans, action_trans).mean()
-        #     rot_loss_x = rot_loss_y = rot_loss_z = 0.0
-        #     grip_loss = 0.0
-        #     collision_loss = 0.0                
-        #     if self.add_rgc_loss:
-        #         rot_loss_x = self._cross_entropy_loss(
-        #             rot_q[
-        #                 :,
-        #                 0 * self._num_rotation_classes : 1 * self._num_rotation_classes,
-        #             ],
-        #             action_rot_x_one_hot.argmax(-1),
-        #         ).mean()
+        loss_log = {}
+        if backprop:
+            # cross-entropy loss
+            trans_loss = self._cross_entropy_loss(q_trans, action_trans).mean()
+            rot_loss_x = rot_loss_y = rot_loss_z = 0.0
+            grip_loss = 0.0
+            collision_loss = 0.0                
+            if self.add_rgc_loss:
+                rot_loss_x = self._cross_entropy_loss(
+                    rot_q[
+                        :,
+                        0 * self._num_rotation_classes : 1 * self._num_rotation_classes,
+                    ],
+                    action_rot_x_one_hot.argmax(-1),
+                ).mean()
 
-        #         rot_loss_y = self._cross_entropy_loss(
-        #             rot_q[
-        #                 :,
-        #                 1 * self._num_rotation_classes : 2 * self._num_rotation_classes,
-        #             ],
-        #             action_rot_y_one_hot.argmax(-1),
-        #         ).mean()
+                rot_loss_y = self._cross_entropy_loss(
+                    rot_q[
+                        :,
+                        1 * self._num_rotation_classes : 2 * self._num_rotation_classes,
+                    ],
+                    action_rot_y_one_hot.argmax(-1),
+                ).mean()
 
-        #         rot_loss_z = self._cross_entropy_loss(
-        #             rot_q[
-        #                 :,
-        #                 2 * self._num_rotation_classes : 3 * self._num_rotation_classes,
-        #             ],
-        #             action_rot_z_one_hot.argmax(-1),
-        #         ).mean()
+                rot_loss_z = self._cross_entropy_loss(
+                    rot_q[
+                        :,
+                        2 * self._num_rotation_classes : 3 * self._num_rotation_classes,
+                    ],
+                    action_rot_z_one_hot.argmax(-1),
+                ).mean()
 
-        #         grip_loss = self._cross_entropy_loss(
-        #             grip_q,
-        #             action_grip_one_hot.argmax(-1),
-        #         ).mean()
+                grip_loss = self._cross_entropy_loss(
+                    grip_q,
+                    action_grip_one_hot.argmax(-1),
+                ).mean()
 
-        #         collision_loss = self._cross_entropy_loss(
-        #             collision_q, action_collision_one_hot.argmax(-1)
-        #         ).mean()
+                collision_loss = self._cross_entropy_loss(
+                    collision_q, action_collision_one_hot.argmax(-1)
+                ).mean()
 
-        #     total_loss = (
-        #         trans_loss
-        #         + rot_loss_x
-        #         + rot_loss_y
-        #         + rot_loss_z * 2
-        #         + grip_loss
-        #         + collision_loss
-        #     )
+            total_loss = (
+                trans_loss
+                + rot_loss_x
+                + rot_loss_y
+                + rot_loss_z * 2
+                + grip_loss
+                + collision_loss
+            )
             
 
-        #     self._optimizer.zero_grad(set_to_none=True)
-        #     total_loss.backward()
-        #     self._optimizer.step()
-        #     self._lr_sched.step()
+            self._optimizer.zero_grad(set_to_none=True)
+            total_loss.backward()
+            self._optimizer.step()
+            self._lr_sched.step()
 
-        #     loss_log = {
-        #         "total_loss": total_loss.item(),
-        #         "trans_loss": trans_loss.item(),
-        #         "rot_loss_x": rot_loss_x.item(),
-        #         "rot_loss_y": rot_loss_y.item(),
-        #         "rot_loss_z": rot_loss_z.item(),
-        #         "grip_loss": grip_loss.item(),
-        #         "collision_loss": collision_loss.item(),
-        #         "lr": self._optimizer.param_groups[0]["lr"],
-        #     }
+            loss_log = {
+                "total_loss": total_loss.item(),
+                "trans_loss": trans_loss.item(),
+                "rot_loss_x": rot_loss_x.item(),
+                "rot_loss_y": rot_loss_y.item(),
+                "rot_loss_z": rot_loss_z.item(),
+                "grip_loss": grip_loss.item(),
+                "collision_loss": collision_loss.item(),
+                "lr": self._optimizer.param_groups[0]["lr"],
+            }
 
 
-        #     manage_loss_log(self, loss_log, reset_log=reset_log)
-        #     return_out.update(loss_log)
+            manage_loss_log(self, loss_log, reset_log=reset_log)
+            return_out.update(loss_log)
 
-        # if eval_log:
-        #     with torch.no_grad():
-        #         wpt = torch.cat([x.unsqueeze(0) for x in wpt])
-        #         pred_wpt, pred_rot_quat, _, _ = self.get_pred(
-        #             out,
-        #             rot_q,
-        #             grip_q,
-        #             collision_q,
-        #             y_q,
-        #             rev_trans,
-        #             dyn_cam_info=dyn_cam_info,
-        #         )
+        if eval_log:
+            with torch.no_grad():
+                wpt = torch.cat([x.unsqueeze(0) for x in wpt])
+                pred_wpt, pred_rot_quat, _, _ = self.get_pred(
+                    out,
+                    rot_q,
+                    grip_q,
+                    collision_q,
+                    y_q,
+                    rev_trans,
+                    dyn_cam_info=dyn_cam_info,
+                )
 
-        #         return_log = manage_eval_log(
-        #             self=self,
-        #             tasks=tasks,
-        #             wpt=wpt,
-        #             pred_wpt=pred_wpt,
-        #             action_rot=action_rot,
-        #             pred_rot_quat=pred_rot_quat,
-        #             action_grip_one_hot=action_grip_one_hot,
-        #             grip_q=grip_q,
-        #             action_collision_one_hot=action_collision_one_hot,
-        #             collision_q=collision_q,
-        #             reset_log=reset_log,
-        #         )
+                return_log = manage_eval_log(
+                    self=self,
+                    tasks=tasks,
+                    wpt=wpt,
+                    pred_wpt=pred_wpt,
+                    action_rot=action_rot,
+                    pred_rot_quat=pred_rot_quat,
+                    action_grip_one_hot=action_grip_one_hot,
+                    grip_q=grip_q,
+                    action_collision_one_hot=action_collision_one_hot,
+                    collision_q=collision_q,
+                    reset_log=reset_log,
+                )
 
-        #         return_out.update(return_log)
+                return_out.update(return_log)
 
         return return_out
 

@@ -101,15 +101,11 @@ def scale_intrinsics(intrinsics, factor):
     return intrinsics
 
 def get_stored_demo_aug(data_path, index, reference_demo):
-    np.set_printoptions(precision=4, suppress=True)
-
     episode_path = os.path.join(data_path, str(index))
   
     # low dim pickle file
     with open(os.path.join(episode_path, "obs.pkl"), 'rb') as f:
         _obs = pickle.load(f)
-
-    reference_obs = reference_demo
 
     obs = {}
     for k in _obs.keys():
@@ -117,69 +113,51 @@ def get_stored_demo_aug(data_path, index, reference_demo):
             obs[k] = _obs[k]
     
     for key in obs.keys():
-        if "expert" in key or "dense" in key:
+        if "dense" in key: 
+            continue
+        if "expert" in key:
             key_id = int(key.split('_')[0])            
             if "put_groceries_in_cupboard" in data_path: # hot fix for strange data error
-                if obs[key].ignore_collisions != reference_obs[key_id].ignore_collisions \
+                if obs[key].ignore_collisions != reference_demo[key_id].ignore_collisions \
                         and obs[key].ignore_collisions == 0:
                     pass
                 else:
-                    obs[key].ignore_collisions = reference_obs[key_id].ignore_collisions
+                    obs[key].ignore_collisions = reference_demo[key_id].ignore_collisions
             else:
-                obs[key].ignore_collisions = reference_obs[key_id].ignore_collisions
+                obs[key].ignore_collisions = reference_demo[key_id].ignore_collisions
             
-            obs[key].gripper_open = reference_obs[key_id].gripper_open # use original gripper open just for safe
-            obs[key].gripper_pose = reference_obs[key_id].gripper_pose # use original gripper pose just for safe
+            obs[key].gripper_open = reference_demo[key_id].gripper_open # use original gripper open just for safe
+            obs[key].gripper_pose = reference_demo[key_id].gripper_pose # use original gripper pose just for safe
 
         obs[key].front_rgb = np.array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_FRONT, IMAGE_RGB), "%s.png" % key)))
-        # image_size = obs[key].front_rgb.shape[0]
-        # factor = image_size // IMAGE_SIZE
-        # print("factor", factor, "image_size", image_size, "IMAGE_SIZE", IMAGE_SIZE)
-        # TODO: change this if you want to use other image size
-        factor = 1
         
-        obs[key].front_rgb = downsample_array(obs[key].front_rgb, factor)
 
 
         obs[key].left_shoulder_rgb = np.array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_LS, IMAGE_RGB), "%s.png" % key)))
-        obs[key].left_shoulder_rgb = downsample_array(obs[key].left_shoulder_rgb, factor)
 
         obs[key].right_shoulder_rgb = np.array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_RS, IMAGE_RGB), "%s.png" % key)))
-        obs[key].right_shoulder_rgb = downsample_array(obs[key].right_shoulder_rgb, factor)
         
         obs[key].wrist_rgb = np.array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_WRIST, IMAGE_RGB), "%s.png" % key)))
-        obs[key].wrist_rgb = downsample_array(obs[key].wrist_rgb, factor)
 
         obs[key].front_depth = image_to_float_array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_FRONT, IMAGE_DEPTH), "%s.png" % key)), DEPTH_SCALE)
-        obs[key].front_depth = downsample_array(obs[key].front_depth, factor)
         near = obs[key].misc['%s_camera_near' % (CAMERA_FRONT)]
         far = obs[key].misc['%s_camera_far' % (CAMERA_FRONT)]
         obs[key].front_depth = near + obs[key].front_depth * (far - near)
 
         obs[key].left_shoulder_depth = image_to_float_array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_LS, IMAGE_DEPTH), "%s.png" % key)), DEPTH_SCALE)
-        obs[key].left_shoulder_depth = downsample_array(obs[key].left_shoulder_depth, factor)
         near = obs[key].misc['%s_camera_near' % (CAMERA_LS)]
         far = obs[key].misc['%s_camera_far' % (CAMERA_LS)]
         obs[key].left_shoulder_depth = near + obs[key].left_shoulder_depth * (far - near)
 
         obs[key].right_shoulder_depth = image_to_float_array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_RS, IMAGE_DEPTH), "%s.png" % key)), DEPTH_SCALE)
-        obs[key].right_shoulder_depth = downsample_array(obs[key].right_shoulder_depth, factor)
         near = obs[key].misc['%s_camera_near' % (CAMERA_RS)]
         far = obs[key].misc['%s_camera_far' % (CAMERA_RS)]
         obs[key].right_shoulder_depth = near + obs[key].right_shoulder_depth * (far - near)
 
         obs[key].wrist_depth = image_to_float_array(Image.open(os.path.join(episode_path, '%s_%s' % (CAMERA_WRIST, IMAGE_DEPTH), "%s.png" % key)), DEPTH_SCALE)
-        obs[key].wrist_depth = downsample_array(obs[key].wrist_depth, factor)
         near = obs[key].misc['%s_camera_near' % (CAMERA_WRIST)]
         far = obs[key].misc['%s_camera_far' % (CAMERA_WRIST)]
         obs[key].wrist_depth = near + obs[key].wrist_depth * (far - near)
-        
-        # scale down intrinsic matrix with factor
-        scale_intrinsics(obs[key].misc['front_camera_intrinsics'], factor)
-        scale_intrinsics(obs[key].misc['left_shoulder_camera_intrinsics'], factor)
-        scale_intrinsics(obs[key].misc['right_shoulder_camera_intrinsics'], factor)
-        scale_intrinsics(obs[key].misc['wrist_camera_intrinsics'], factor)
-        
 
         obs[key].front_point_cloud = VisionSensor.pointcloud_from_depth_and_camera_params(obs[key].front_depth, 
                                                                                         obs[key].misc['front_camera_extrinsics'],
@@ -232,10 +210,6 @@ def _add_keypoints_to_replay(
         rotation_resolution,
     )
 
-    # print("trans_indicies", trans_indicies)
-    # print("rot_grip_indicies", rot_grip_indicies)
-    # print("ignore_collisions", ignore_collisions)
-
     HIGH_LEVEL_GOAL_TEMPLATE = "Task goal: {}."
     LOW_LEVEL_GOAL_TEMPLATE = "{}\nCurrent instruction: {}"
     high_level_task_goal = HIGH_LEVEL_GOAL_TEMPLATE.format(task_goal)
@@ -261,6 +235,7 @@ def _add_keypoints_to_replay(
             prev_action=None,
             episode_length=30,
         )
+        obs_dict.update(lang_emb_dict)
         obs_dict["ignore_collisions"] = np.array([ignore_collisions], dtype=np.int32)
 
         # remove depth to save space
@@ -275,12 +250,10 @@ def _add_keypoints_to_replay(
             lang_model_name = res["model"]
             text_id = res["text_id"]
             obs_dict["%s_%s" % (text_id, lang_model_name)] = padding_embs(np.array(res["embeddings"][0], dtype=np.float32))
-            obs_dict["%s_%s" % (text_id.replace("goal_embs", "len"), lang_model_name)] = np.array([res["token_len"]], dtype=np.int32)
-        obs_dict.update(lang_emb_dict)
+            obs_dict["%s_%s" % (text_id.replace("_embs", "_len"), lang_model_name)] = np.array([
+                res["token_len"]], dtype=np.int32)
         
-        
-        
-        simp_inst = simp_inst.lower().strip()
+        simp_inst = simp_inst.lower().strip().strip(".")
         simp_inst = LOW_LEVEL_GOAL_TEMPLATE.format(high_level_task_goal, simp_inst)
         lang_model_zoo.send_task(text_id="simp_inst_embs", text=simp_inst)
         results = lang_model_zoo.get_results()
@@ -288,10 +261,8 @@ def _add_keypoints_to_replay(
             lang_model_name = res["model"]
             text_id = res["text_id"]
             obs_dict["%s_%s" % (text_id, lang_model_name)] = padding_embs(np.array(res["embeddings"][0], dtype=np.float32))
-            obs_dict["%s_%s" % (text_id.replace("goal_embs", "len"), lang_model_name)] = np.array([res["token_len"]], dtype=np.int32)
-        obs_dict.update(lang_emb_dict)
+            obs_dict["%s_%s" % (text_id.replace("_embs", "_len"), lang_model_name)] = np.array([res["token_len"]], dtype=np.int32)
         
-
         others = {
             "demo": is_expert_step,
             "keypoint_idx": keypoint_idx,
@@ -342,26 +313,21 @@ def fill_replay(
 ):
         
     print("Filling replay in %s ... " % task_replay_storage_folder)
+    os.makedirs(task_replay_storage_folder, exist_ok=True)
     for data_path, reference_data_path in [
         (data_path_train, reference_data_path_train),
         (data_path_val, reference_data_path_val),
     ]:          
     
-        print(sorted(os.listdir(data_path), key=lambda x: int(x.split("_")[0])))
         for ep_name in sorted(os.listdir(data_path), key=lambda x: int(x.split("_")[0])):
             d_idx = int(ep_name.split("_")[0])
-            
-            # missing language description json, skip
-            if not os.path.exists(os.path.join(data_path, str(d_idx), "language_description.json")):
-                continue
-
-            print(f"Filling demo {d_idx} of {task_replay_storage_folder}")
+            print(f"Filling demo {d_idx} of {data_path}")
             # from original data
             reference_demo = get_stored_demo(data_path=reference_data_path, index=d_idx)
             # from augmented data
             demo = get_stored_demo_aug(data_path=data_path, index=d_idx, reference_demo=reference_demo)            
             # get language goal from disk
-            with open(os.path.join(data_path, str(d_idx), "language_description.json"), "r") as f:
+            with open(os.path.join(data_path, str(d_idx), "language_description_new.json"), "r") as f:
                 language_description = json.load(f)
             
             # transition
@@ -374,11 +340,9 @@ def fill_replay(
                 task_goal = task_goal[0] # take easiest one
             expert_step_keys = [s for s in list(language_description["subgoal"].keys()) if "expert" in s]
             expert_step_keys = sorted(expert_step_keys, key=lambda x: int(x.split("_")[0]))
-            print(expert_step_keys)
             return_dict = {}
             
             for expert_key_idx in range(1, len(expert_step_keys)):
-                input("Press Enter to continue...")
                 key_id = int(expert_step_keys[expert_key_idx].split('_')[0])
                 if key_id < 10: continue # skip the first 10 dense steps since it's very unlikely to be an expert step
 

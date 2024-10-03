@@ -28,7 +28,7 @@ DATASET = ["train", "val", "test"]
 MODEL_PATH_DICT = {
     # name: (path, cuda_device)
     "RVT": ("racer/runs/rvt_ckpt/model_14.pth", 0), # original rvt model
-    "RACER": ("racer/runs/racer_ckpt/model_17.pth", 1), # our racer model
+    "RACER": ("racer/runs/racer_ckpt/model_17.pth", 0), # our racer model
 }
 MODELS = list(MODEL_PATH_DICT.keys())
 LLAVA_TALK_CHOICE = ["close llava", "open llava"]

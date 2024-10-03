@@ -10,10 +10,10 @@ CUDA_VISIBLE_DEVICES=0 python racer/evaluation/rollout.py \
     --start-episode 0 \
     --eval-episodes 25 \
     --episode-length 25 \
-    --log-name test \
+    --log-name test-0928 \
     --model-name model_14.pth \
     --eval-log-dir racer/runs/${MODEL}/eval \
-    --lm-address http://141.212.106.177:8000/encode/ \
+    --lm-address http://141.212.110.118:8000/encode/ \
     --use-full-langlen
 
 end=$(date +%s)

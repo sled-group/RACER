@@ -33,6 +33,7 @@ RLBENCH_TASKS = [
     "meat_off_grill",
     "stack_cups",
     # ##### unseen tasks #####
+    # uncomment this when evalutaing on unseen tasks
     # "slide_block_to_target", "close_drawer", "reach_target", "pick_up_cup", 
 ]
 
@@ -75,7 +76,8 @@ def load_agent(agent_path, agent):
 
 
 def print0(*args, **kwargs):
-    if dist.is_initialized() and dist.get_rank() == 0:
-        print(*args, **kwargs)
+    if dist.is_initialized():
+        if dist.get_rank() == 0:
+            print(*args, **kwargs)
     else:
         print(*args, **kwargs)

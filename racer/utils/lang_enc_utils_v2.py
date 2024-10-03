@@ -9,13 +9,7 @@ import numpy as np
 import requests
 import torch
 
-ALL_MODELS = [
-    # "clip", 
-    # "t5-3b", 
-    "t5-11b", 
-    # "bart-large", "roberta-large", 
-    # "llama3"
-    ]
+ALL_MODELS = ["clip", "t5-11b"]
 
 MAX_LEN = 77
 
@@ -148,7 +142,7 @@ class LangModelZoo:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--lm-addr", type=str, default="http://141.212.106.177:8000/encode/")
+    parser.add_argument("--lm-addr", type=str, default="http://141.212.110.118:8000/encode/")
     args = parser.parse_args()
     
     lang_model_zoo = LangModelZoo(lm_addr=args.lm_addr)

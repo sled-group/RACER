@@ -19,7 +19,6 @@ from racer.rvt.mvt.attn import (
     DenseBlock,
     FeedForward,
 )
-from racer.utils.racer_utils import print0
 
 
 class MVT(nn.Module):
@@ -106,7 +105,6 @@ class MVT(nn.Module):
         self.pe_fix = pe_fix
         self.use_dropout = use_dropout
 
-        print0(f"MVT Vars: {vars(self)}")
 
         assert not renderer is None
         self.renderer = renderer

@@ -10,11 +10,12 @@ CUDA_VISIBLE_DEVICES=1 python racer/evaluation/rollout.py \
     --start-episode 0 \
     --eval-episodes 25 \
     --episode-length 30 \
-    --log-name testxxx \
+    --log-name test-llava-0928 \
     --model-name model_17.pth \
     --eval-log-dir racer/runs/${MODEL}/eval \
-    --lm-address http://141.212.106.177:8000/encode/ \
-    --vlm-address http://141.212.106.177:21002  --use-vlm
+    --lm-address http://141.212.110.118:8000/encode/ \
+    --vlm-address http://141.212.110.118:21002 \
+    --use-vlm # comment this line out if eval with task-goal only, i.e., no instructions
 
 end=$(date +%s)
 runtime=$((end-start))

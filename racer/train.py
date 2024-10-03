@@ -25,18 +25,13 @@ class ExampleTrainer(DDPTrainer):
     
     def make_cmd_args(self):
         parser = argparse.ArgumentParser()
-        parser.add_argument("--refresh_replay", action="store_true", default=False)
-        parser.add_argument("--device", type=str, default="0")
         parser.add_argument("--mvt_cfg_path", type=str, default="")
         parser.add_argument("--exp_cfg_path", type=str, default="")
-
         parser.add_argument("--mvt_cfg_opts", type=str, default="")
         parser.add_argument("--exp_cfg_opts", type=str, default="")
 
         parser.add_argument("--log-dir", type=str, default="runs")
-        parser.add_argument("--with-eval", action="store_true", default=False)
         
-        # parser.add_argument("--replay-dir", type=str, default="replay")
         parser.add_argument("--replay-dir-aug", type=str, default="replay_aug")
         parser.add_argument("--data-image-size", type=int, default=512)    
 
@@ -56,7 +51,7 @@ class ExampleTrainer(DDPTrainer):
         # Things to change
         BATCH_SIZE_TRAIN = exp_cfg.bs
         
-        TRAINING_ITERATIONS = 125384 // (exp_cfg.bs * world_size) # TODO: to be determined. 
+        TRAINING_ITERATIONS = 125000 // (exp_cfg.bs * world_size)
         EPOCHS = exp_cfg.epochs
         if exp_cfg.peract.warmup_proportion > 0:
             exp_cfg.peract.warmup_steps = int(TRAINING_ITERATIONS * exp_cfg.peract.warmup_proportion * EPOCHS)

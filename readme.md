@@ -53,69 +53,71 @@ Download [RLbench](https://drive.google.com/drive/folders/0B2LlLwoO3nfZfkFqMEhXW
 You can only download `test` for evaluation if you want to save some space.
 
 - **Step 2:**
-Download our augmentation training data. put it under `RACER/racer/data/augmented_rlbench/xxx`, where `xxx` is either `train` or `val`.
-
-
-
-### Prepare Model service
-We set a client-server framework for language encoder service and LLaVA model service, please refer this page for details.  After the language encoder service is set up, you should be able to test it with `python racer/utils/lang_enc_utils_v2.py --lm-addr <lm service addr>`
+Download our language-guided failure-recovery [augmentation training data](). put it under `RACER/racer/data/augmented_rlbench/xxx`, where `xxx` is either `train` or `val`.
 
 
 ### Data Processing
-After set up the language encoder service,  you can process the data using `python racer/utils/preprocess_data.py`. The data will be processed into replay buffers by [YARR](https://github.com/stepjam/YARR).  
+After set up the language encoder service,  you can process the data using 
+```
+python racer/utils/preprocess_data.py
+```
+The data will be processed into replay buffers by [YARR](https://github.com/stepjam/YARR).  
 To save data processing time, you can also download our generated replay buffer data [racer_replay_public]() here, and put place it under  `RACER/racer/replay_buffers`.   
 This is useful only if you want to train RACER by yourself and not needed if you just want to evaluate the pre-trained model.
 
 
 
+
 ## Training RACER
 ### Training visuomotor policy
-To train RVT on all RLBench tasks, use the following command (from folder `RACER/racer`):
+To train RACER on all RLBench tasks, use the following command:
 ```
-python train.py --exp_cfg_path configs/all.yaml --device 0,1,2,3,4,5,6,7
+./scripts/train_racer.sh
 ```
+You can change the `rich/simple/task` yaml files for `--exp_cfg_path` to train different types of models, and change `exp_id` to name the trained model directory name.
 
 ### Training LLaVA model
-Please refer to this [page]()
+Please refer to this [page](https://github.com/rich-language-failure-recovery/Open-LLaVA-NeXT/tree/racer_llava)
 
 
 
 ## Evaluating RACER
-First, set up a language model serive following [Prepare Model service](#prepare_model_service) and get the lang_model_address. 
+### Setup Service
+We set a client-server framework for language encoder service and LLaVA model service that RACER/RVT needs, please refer this [page](https://github.com/rich-language-failure-recovery/Open-LLaVA-NeXT/tree/racer_llava?tab=readme-ov-file#5-set-up-online-service) for details.  
 
-Evaluate RVT
+After the language encoder service is set up, you can test it with 
 ```
-./scripts/eval_rvt.sh # for RVT eval
-```
-
-Evaluate RACER, you first need to set up llava service and language encoder service following [here](), and get the service host address.
-```
-./scripts/eval_racer.sh  # for RACER eval
+python racer/utils/lang_enc_utils_v2.py --lm-addr <lm service addr>`
 ```
 
-Peak Memory: 19.2GB for langauge model service, 31.7 GB for llava service, 15.5 GB for visuomotor policy model. 
+After the LLaVA service is set up, you can test it with 
+```
 
+```
 
-## Gradio Demo
-`pip install gradio==4.36.1` 
+### Model Checkpoints
+Download the official [RVT](https://drive.google.com/drive/folders/1lf1znYM5I-_WSooR4VeJjzvydINWPj6B) model and place it into `racer/runs/rvt_ckpt`.   
+Download our RACER [visuomotor policy model]() and place it into `racer/runs/racer_ckpt`.
 
+### Evaluate RVT
+```
+./scripts/eval_rvt.sh 
+```
 
-### Model ckpt
-Download the official [RVT](https://drive.google.com/drive/folders/1lf1znYM5I-_WSooR4VeJjzvydINWPj6B) model and place it into `racer/runs/rvt_ckpt`.  
-Download our racer [model]() and place it into `racer/runs/racer_ckpt`.
+### Evaluate RACER
+```
+./scripts/eval_racer.sh 
+```
+It takes around 5 hours to finish all tasks evaluation
 
+Peak Memory: 19.2GB for langauge model service, 31.7 GB for llava service, 15.5 GB for visuomotor policy model. Using different GPUs or machines to allocate the memory usage is recommended. 
 
-## Trouble shooting
-### CoppeliaSim issue
-
-
-1. "Cannot load library /home/daiyp/manipulation/RACER/coppeliasim/CoppeliaSim_Edu_V4_5_1_rev4_Ubuntu22_04/libsimExtIM.so: libstdc++.so.6: version `GLIBCXX_3.4.30' not found (required by libopencv_core.so.406))"
- CoppeliaSim_Edu_V4_1_0_Ubuntu20_04/libsimExtBlueZero.so: (libicui18n.so.66: cannot open shared object file: No such file or directory)"
-
-
-libGL error: failed to load driver: swrast
-
-
+### Gradio Online Demo
+First install `pip install gradio==4.36.1`, then run 
+```
+./scripts/demo.sh 
+```
+More detailed cases can be found [here](docs/gradio_interface_usage.md)
 
 # Acknowledgement
 
