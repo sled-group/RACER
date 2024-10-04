@@ -321,13 +321,13 @@ def fill_replay(
     
         for ep_name in sorted(os.listdir(data_path), key=lambda x: int(x.split("_")[0])):
             d_idx = int(ep_name.split("_")[0])
-            print(f"Filling demo {d_idx} of {data_path}")
+            print(f"Filling demo {ep_name} of {data_path}")
             # from original data
             reference_demo = get_stored_demo(data_path=reference_data_path, index=d_idx)
             # from augmented data
-            demo = get_stored_demo_aug(data_path=data_path, index=d_idx, reference_demo=reference_demo)            
+            demo = get_stored_demo_aug(data_path=data_path, index=ep_name, reference_demo=reference_demo)            
             # get language goal from disk
-            with open(os.path.join(data_path, str(d_idx), "language_description_new.json"), "r") as f:
+            with open(os.path.join(data_path, str(ep_name), "language_description.json"), "r") as f:
                 language_description = json.load(f)
             
             # transition
@@ -367,7 +367,7 @@ def fill_replay(
                     time_step = expert_key_idx + 2
 
                 # previous expert to current expert
-                print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])   
+                # print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])   
                 return_dict = _add_keypoints_to_replay(
                     replay,
                     task,
@@ -435,7 +435,7 @@ def fill_replay(
                             # mistake to current expert
                             pass
 
-                        print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])                            
+                        # print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])                            
                         return_dict = _add_keypoints_to_replay(
                             replay,
                             task,
@@ -466,7 +466,7 @@ def fill_replay(
                             subgoal_tp1 = language_description["subgoal"][current_expert_key]
 
 
-                            print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])   
+                            # print(subgoal_tm1["idx"], "->", subgoal_tp1["idx"])   
                             return_dict = _add_keypoints_to_replay(
                                 replay,
                                 task,

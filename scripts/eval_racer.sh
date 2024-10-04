@@ -1,5 +1,5 @@
 
-MODEL=racer_ckpt
+MODEL=racer-visuomotor-policy-rich
 CKPTID=17
 echo ${MODEL}
 start=$(date +%s)

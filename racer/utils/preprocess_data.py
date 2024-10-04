@@ -68,9 +68,8 @@ if __name__ == "__main__":
     parser.add_argument("--rlbench_data_folder", type=str, default="racer/data/rlbench")
     parser.add_argument("--replay_storage_folder", type=str, default="racer/replay_buffers/racer_replay_generated")
     args = parser.parse_args()
-    # process_task(task="put_item_in_drawer", lm_addr=args.lm_addr, augment_data_folder=args.augment_data_folder, rlbench_data_folder=args.rlbench_data_folder, replay_storage_folder=args.replay_storage_folder)
     
-    with multiprocessing.Pool(processes=3) as pool:
+    with multiprocessing.Pool(processes=8) as pool:
         pool.starmap(
             process_task,
             [(

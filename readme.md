@@ -1,3 +1,5 @@
+# Code for RACER: Rich Language-Guided Failure Recovery Policies for Imitation Learning
+
 ## Getting Started
 
 ### Install RACER
@@ -53,16 +55,18 @@ Download [RLbench](https://drive.google.com/drive/folders/0B2LlLwoO3nfZfkFqMEhXW
 You can only download `test` for evaluation if you want to save some space.
 
 - **Step 2:**
-Download our language-guided failure-recovery [augmentation training data](). put it under `RACER/racer/data/augmented_rlbench/xxx`, where `xxx` is either `train` or `val`.
+Download our language-guided failure-recovery [augmentation training data](https://huggingface.co/datasets/Yinpei/augmented_rlbench). put it under `RACER/racer/data/augmented_rlbench/xxx`, where `xxx` is either `train` or `val`.
+For more information about our automatic data generation pipeline, please refer [this](https://github.com/rich-language-failure-recovery/RACER-DataGen).
 
 
 ### Data Processing
-After set up the language encoder service,  you can process the data using 
+After set up the language encoder service following [this](https://github.com/rich-language-failure-recovery/Open-LLaVA-NeXT/tree/racer_llava?tab=readme-ov-file#51-set-up-language-encoder-service-ie-clip-and-t5-model-around-20gb-in-total),  you can process the data using 
 ```
 python racer/utils/preprocess_data.py
 ```
 The data will be processed into replay buffers by [YARR](https://github.com/stepjam/YARR).  
-To save data processing time, you can also download our generated replay buffer data [racer_replay_public]() here, and put place it under  `RACER/racer/replay_buffers`.   
+
+To save data processing time, you can also directly download our generated replay buffer data [racer_replay_public](https://huggingface.co/datasets/Yinpei/racer_replay_public) here without processing by yourself, and put place it under  `RACER/racer/replay_buffers`.   
 This is useful only if you want to train RACER by yourself and not needed if you just want to evaluate the pre-trained model.
 
 
@@ -87,21 +91,22 @@ We set a client-server framework for language encoder service and LLaVA model se
 
 After the language encoder service is set up, you can test it with 
 ```
-python racer/utils/lang_enc_utils_v2.py --lm-addr <lm service addr>`
+python racer/utils/lang_enc_utils_v2.py --lm-addr <lm service addr>
 ```
 
 After the LLaVA service is set up, you can test it with 
 ```
-
+python racer/evaluation/llava_api/api.py  --vlm-addr <vlm service addr>
 ```
 
 ### Model Checkpoints
 Download the official [RVT](https://drive.google.com/drive/folders/1lf1znYM5I-_WSooR4VeJjzvydINWPj6B) model and place it into `racer/runs/rvt_ckpt`.   
-Download our RACER [visuomotor policy model]() and place it into `racer/runs/racer_ckpt`.
+Download our RACER visuomotor policy model trained wth [rich instructions]((https://huggingface.co/Yinpei/racer-visuomotor-policy-rich)) and place it under `racer/runs/racer-visuomotor-policy-rich`.
+You can also download RACER visuomotor policy model trained with [simple instructions](https://huggingface.co/Yinpei/racer-visuomotor-policy-simple) or [no instructions](https://huggingface.co/Yinpei/racer-visuomotor-policy-taskgoal) for more evaluation. 
 
 ### Evaluate RVT
 ```
-./scripts/eval_rvt.sh 
+./scripts/eval_rvt.sh
 ```
 
 ### Evaluate RACER
@@ -119,8 +124,19 @@ First install `pip install gradio==4.36.1`, then run
 ```
 More detailed cases can be found [here](docs/gradio_interface_usage.md)
 
-# Acknowledgement
+## Acknowledgement
 
 This code is adapted and modified upon the released  [RVT](https://github.com/NVlabs/RVT/tree/0b170d7f1e27a13299a5a06134eeb9f53d494e54) code.
 
 We really appreciate their open-sourcing such high-quality code, which is very helpful to our research!
+
+
+## Citation
+```
+@article{dai2024racer,
+  title={RACER: Rich Language-Guided Failure Recovery Policies for Imitation Learning},
+  author={Dai, Yinpei and Lee, Jayjun and Fazeli, Nima and Chai, Joyce},
+  journal={arXiv preprint arXiv:2409.14674},
+  year={2024}
+}
+```
