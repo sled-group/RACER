@@ -4,7 +4,7 @@
 [![YouTube Video](../assets/rvt2racer.png)](https://www.youtube.com/watch?v=fKy6-x9fWJE)
 
 
-[Note] Since original RACER-llava-llama3 is not for model switching (it always requires last instruction as input, there is no last instruction input if switching model from RVT to RACER), we retrained a new RACER-llava-llama3 checkpoint [here] for better model switching particularly. This checkpoint achieves around 69.5% on 18 RLbench tasks.
+[Note] Since original [RACER-llava-llama3](https://huggingface.co/Yinpei/racer-llava-llama3-lora-rich) is not for model switching (RACER always requires last instruction as input, there is no last instruction input if switching model from RVT to RACER), we retrained a new RACER-llava-llama3 [checkpoint](https://huggingface.co/Yinpei/racer-llava-llama3-lora-rich-betterswitch) for better model switching particularly. This checkpoint achieves around 69.5% on 18 RLbench tasks.
 
 
 
