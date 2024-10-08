@@ -55,7 +55,8 @@ You can only download `test` for evaluation if you want to save some space.
 
 - **Step 2:**
 Download our language-guided failure-recovery [augmentation training data](https://huggingface.co/datasets/Yinpei/augmented_rlbench). put it under `RACER/racer/data/augmented_rlbench/xxx`, where `xxx` is either `train` or `val`.
-For more information about our automatic data generation pipeline, please refer [this](https://github.com/rich-language-failure-recovery/RACER-DataGen).
+
+For more information about our automatic data generation pipeline, please refer to this [page](https://github.com/rich-language-failure-recovery/RACER-DataGen).
 
 
 ### Data Processing
@@ -86,7 +87,7 @@ Please refer to this [page](https://github.com/rich-language-failure-recovery/Op
 
 ## Evaluating RACER
 ### Setup Service
-We set a client-server framework for language encoder service and LLaVA model service that RACER/RVT needs, please refer this [page](https://github.com/rich-language-failure-recovery/Open-LLaVA-NeXT/tree/racer_llava?tab=readme-ov-file#5-set-up-online-service) for details.  
+We set a client-server framework for language encoder service and LLaVA model service that RACER/RVT needs, please refer to this [page](https://github.com/rich-language-failure-recovery/Open-LLaVA-NeXT/tree/racer_llava?tab=readme-ov-file#5-set-up-online-service) for details.  
 
 After the language encoder service is set up, you can test it with 
 ```
@@ -124,9 +125,11 @@ More detailed cases can be found [here](docs/gradio_interface_usage.md)
 
 ## Acknowledgement
 
-This code is adapted and modified upon the released  [RVT](https://github.com/NVlabs/RVT/tree/0b170d7f1e27a13299a5a06134eeb9f53d494e54) code.
+This code is adapted and modified upon the released  [RVT](https://github.com/NVlabs/RVT/tree/0b170d7f1e27a13299a5a06134eeb9f53d494e54) code. 
+We really appreciate the authors release their code, which is very helpful to our research!
 
-We really appreciate they open source such high-quality code, which is very helpful to our research!
+This work is supported in part by NSF IIS1949634, NSF SES-2128623,
+and has benefited from the Microsoft Accelerate Foundation Models Research (AFMR) grant program.
 
 
 ## Citation
