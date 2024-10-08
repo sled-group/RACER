@@ -87,9 +87,9 @@ class RLBenchSim:
         # action is (9, ) array, 3 for pose, 4 for quaternion, 1 for gripper, 1 for ignore_collision
         wrap_action = ActResult(action=action)            
         transition = self.env.step(wrap_action) # get Transition(obs, reward, terminal, info, summaries)    
-        if transition.info['error_status'] == "error":
+        if transition.info['error_status'] == "error": # sometimes RLbench throws strange error
             print(f"Error: action was {action}")
-            if self.task_name in ["put_item_in_drawer"]:
+            if self.task_name in ["put_item_in_drawer"]: 
                 transition = self.env.step(ActResult(action=STAND_POSE_ACTION))
             if self.task_name in ["open_drawer"] and self.last_action is not None: 
                 # hot fix to avoid strange invalid error

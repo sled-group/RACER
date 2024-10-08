@@ -228,6 +228,7 @@ class GradioInterface:
         while self.reset_value.value == 1:
             pass
         self.robot_state = RobotState(robot_delta_state="idle", action_desc="No action")
+        
         # clear last instruction
         while not self.inst_queue.empty():
             self.inst_queue.get()
@@ -238,23 +239,13 @@ class GradioInterface:
                 yield self.last_task_goal, chat_history
         else:
             yield self.last_task_goal, chat_history
-        # [ 0.0616 -0.1523 1.1663], rotation: [-0.98 0.199 -0. 0. ]
-        # [0.1523 0.075 1.1713], rotation: [-0.98 0.199 -0. 0. ],
 
     def process_llava_inst(self):
-        # self.step_lock = True
-        # chat_history.append(["", None])
-        # yield chat_history
-        # for resp in self.llava_api.get_response_stream(self.wrap_prompt(), self.get_img()):
-        #     chat_history[-1][0] += resp
-        #     yield chat_history
         logger.info(f"RobotState: {json.dumps(self.robot_state.to_dict())}")
         if self.robot_state.robot_delta_state == "idle":
             user_msg = TEMPLATE_first_step.format(task_goal=self.last_task_goal)
         else: 
             if self.last_instruction is None:
-                # chat_history.append([None, "--- Please manually input the instruction first! ---"])
-                # return chat_history
                 self.last_instruction = self.last_task_goal
             elif self.last_instruction == "home":
                 self.last_instruction = "reset to the home position."
@@ -266,26 +257,14 @@ class GradioInterface:
             user_msg = TEMPLATE_other_step.format(task_goal=self.last_task_goal, previous_instruction=self.last_instruction, robot_delta_state=robot_delta_state)
         
         logger.info(f"query llava with {json.dumps(user_msg)}")
-        # instruction = self.llava_api.get_response_stream(user_msg, image=self.last_front_rgb)
         instruction = ""
         for chuck in self.llava_api.get_response_stream(user_msg,  image=self.last_front_rgb):
             time.sleep(0.01)
             instruction += chuck
             yield chuck
-        
-        # # mimic llava streaming response
-        # llava_message = "i am llava instruction. i am llava instruction. i am llava instruction. i am llava instruction. i am llava instruction"
-        # yield chat_history
-        # for ch in llava_message:
-        #     chat_history[-1][0] += ch
-        #     time.sleep(0.1)
-        #     yield chat_history
 
         instruction = Evaluator.parse_vlm_instruction(instruction)
         self.inst_queue.put(("llava", instruction))
-
-        # if self.robot_state.status == "ongoing":
-        #     self.step_lock = False
 
                 
     def wrap_prompt(self):
@@ -334,8 +313,6 @@ class GradioInterface:
         return chat_history
     
     def step_action(self, chat_history):
-        # if self.step_lock:
-        #     return chat_history
         self.step_value.value = 1
         self.robot_state: RobotState = self.state_queue.get() # wait for policy finish and get the robot state
         self.last_instruction = self.robot_state.last_insturction
@@ -352,15 +329,12 @@ class GradioInterface:
             time.sleep(0.1)
         if self.robot_state.status == "success":
             chat_history.append((None, "Task completed! Consider restarting the episode."))
-            # self.step_lock = True
             yield chat_history
         elif self.robot_state.status == "failure":
             chat_history.append((None, "Task failed due to maxmium steps! Consider restarting the episode."))
-            # self.step_lock = True
             yield chat_history
         elif self.robot_state.status == "InvalidActionError":
             chat_history.append((None, "Invalid action! Consider restarting the episode."))
-            # self.step_lock = True
             yield chat_history
         else:
             # use llava talk

@@ -9,6 +9,8 @@ from racer.evaluation.utils import ROLLOUT_IMAGE_SIZE
 from racer.utils.racer_utils import CAMERAS, load_agent, SCENE_BOUNDS
 import racer.rvt.models.rvt_agent as rvt_agent
 from racer.rvt.mvt.mvt_v2 import MVT
+import racer.rvt.config as default_exp_cfg
+import racer.rvt.mvt.config as default_mvt_cfg
 
 
 class Agent:
@@ -41,9 +43,6 @@ class ModelRVTAgent(Agent):
         self.device = f"cuda:{device}" if torch.cuda.is_available() else "cpu"
 
         self.use_full_langlen = use_full_langlen
-        
-        import racer.rvt.config as default_exp_cfg
-        import racer.rvt.mvt.config as default_mvt_cfg
         model_folder = os.path.dirname(model_path)
         
         # load exp_cfg
@@ -114,10 +113,10 @@ class ModelRVTAgent(Agent):
         down_sampled_obs = self.preprocess_obs_dict(input_obs)
         obs_tensor = self._wrap_obs(down_sampled_obs)
         if self.use_full_langlen: 
+            # original RVT use full langlen (77 tokens) for langauge input without any masking
             assert self.agent.lang_model_name == "clip" 
         else:
             assert self.agent.lang_model_name == "t5-11b"
-        # original rvt uses clip with full langlen 77
         act_result: ActResult = self.agent.act(
             step=0, observation=obs_tensor, input_lang_str=input_lang_str,
             use_full_langlen=self.use_full_langlen

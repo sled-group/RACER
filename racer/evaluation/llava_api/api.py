@@ -102,10 +102,14 @@ class LlavaAPI:
 
 
 if __name__ == "__main__":
-    addr = "http://141.212.110.118:21002"
-    llava_api = LlavaAPI(addr)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--vlm-addr", type=str, default="http://141.212.110.118:21002")
+    args = parser.parse_args()
+    
+    llava_api = LlavaAPI(args.vlm_addr)
 
-    task_goal = "push the red button"
+    task_goal = "close the lime jar"
     
 
     TEMP_first_step= "<image>\nThe task goal is: {task_goal}. This is the first step and the robot is about to start the task. Based on the visual observation and the context, how does the robot fulfil that previous instruction and what's the next instruction for the robot arm?"
@@ -113,37 +117,15 @@ if __name__ == "__main__":
     TEMP_other_step = "<image>\nThe task goal is: {task_goal}. In the previous step, the robot arm was given the following instruction: \"{previous_instruction}\". Based on the visual observation and the context, how does the robot fulfil that previous instruction and what's the next instruction for the robot arm?"
 
     user_msg = TEMP_first_step.format(task_goal=task_goal)
-    image = Image.open("sample_0.png")
+    image = Image.open("racer/data/augmented_rlbench/train/close_jar/2/front_rgb/0_expert.png")
     instruction = llava_api.get_response(user_msg, image=image)
-    print(instruction) # The robot started the task. The next instruction is: Move to the initial button pressing position above the red button.
+    print(instruction) 
 
 
 
-    # instruction  = instruction.split("The next instruction is:")[1].strip() # extract the instruction
-    instruction = "Move to the initial button pressing position above the red button."
+    instruction = "Approach the lid by moving towards it and align the gripper above it."
 
     user_msg = TEMP_other_step.format(task_goal=task_goal, previous_instruction=instruction)
-    image = Image.open("sample_1.png")
+    image = Image.open("racer/data/augmented_rlbench/train/close_jar/2/front_rgb/52_expert.png")
     instruction = llava_api.get_response(user_msg, image=image)
-    print(instruction)  # The robot successfully followed the previous instruction. The next instruction is: Press down firmly on the red button until contact is made.
-
-
-    instruction = "Navigate to the red button and prepare to press it."
-    user_msg = TEMP_other_step.format(task_goal=task_goal, previous_instruction=instruction)
-    image = Image.open("sample_1_perturb_heuristic_0.png")
-    instruction = llava_api.get_response(user_msg, image=image)
-    print(instruction)  # The robot successfully followed the previous instruction. The next instruction is: Press down firmly on the red button until contact is made. # Not very good...
-
-    instruction = "Position the gripper above the red button and close to press it."
-    user_msg = TEMP_other_step.format(task_goal=task_goal, previous_instruction=instruction)
-    image = Image.open("sample_1_perturb_heuristic_1.png")
-    instruction = llava_api.get_response(user_msg, image=image)
-    print(instruction)  # The robot successfully followed the previous instruction. The next instruction is: Press down firmly on the red button until contact is made.
-
-    instruction = "Navigate to press the red button by moving to the correct position and orientation, then close the gripper to push it."
-    user_msg = TEMP_other_step.format(task_goal=task_goal, previous_instruction=instruction)
-    image = Image.open("sample_1_perturb_heuristic_2.png")
-    instruction = llava_api.get_response(user_msg, image=image)
-    print(instruction)  # The robot successfully followed the previous instruction. The next instruction is: Press down firmly on the red button until contact is made.
-
-
+    print(instruction) 

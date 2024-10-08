@@ -111,7 +111,7 @@ class AgentEnv:
         self.models: Dict[str, ModelRVTAgent] = {}
         for model_name, (model_path, device_id) in model_path_dict.items():
             if model_name == "RVT":
-                self.models[model_name] = ModelRVTAgent(model_path=model_path, device=device_id,  use_full_langlen=True, lm_addr=self.lm_addr)
+                self.models[model_name] = ModelRVTAgent(model_path=model_path, device=device_id, use_full_langlen=True, lm_addr=self.lm_addr)
             else:
                 self.models[model_name] = ModelRVTAgent(model_path=model_path, device=device_id, use_full_langlen=False, lm_addr=self.lm_addr)
             self.models[model_name].reset()

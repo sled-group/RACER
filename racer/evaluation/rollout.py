@@ -56,7 +56,6 @@ def make_args():
     parser.add_argument("--device", type=int, default=0)  # for poliy agent
 
     parser.add_argument("--retry-for-InvalidActionError", type=int, default=5)
-    parser.add_argument("--append-text-to-gif", action="store_true")
     
     # LM service
     parser.add_argument("--lm-address", type=str, default="http://localhost:8000")
@@ -67,14 +66,14 @@ def make_args():
         "--use-vlm", action="store_true"
     )  # use llava vlm agent to generate instruction. RVT does not need this
 
-    # human cotrol
+    # human control using Command Line Window, Better to use in Gradio GUI
     parser.add_argument("--use-human-low-level", action="store_true")
     parser.add_argument("--use-manual-control", action="store_true")
     parser.add_argument("--use-human-high-level", action="store_true")
     parser.add_argument("--use-human-help", action="store_true")
 
     # old version lang input
-    # The langauge input for RVT is full length (512) of the language encoder
+    # The langauge input for RVT is full length (77) of the language encoder
     parser.add_argument("--use-full-langlen", action="store_true")
 
 
@@ -138,8 +137,6 @@ class Evaluator:
             episode_length=args.episode_length
         )
         self.debug = args.debug
-
-
         self.metric_dict = {}
 
 
@@ -418,8 +415,8 @@ class Evaluator:
             if last_action[-2] == 0 and action[-2] == 0:
                 action[-1] = 0
         if task_name in ["close_jar"]: # avoid stuck in the table
-            if np.linalg.norm(action[:3] - last_action[:3]) < 0.008 and last_action[-2]==0 and step <=3:
-                action[2] += 0.18
+            # if np.linalg.norm(action[:3] - last_action[:3]) < 0.008 and last_action[-2]==0 and step <=3:
+            #     action[2] += 0.18
             if last_action[-2]==0:
                 action[-2] = 0
         if task_name in ["light_bulb_in"]:

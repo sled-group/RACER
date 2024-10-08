@@ -14,8 +14,7 @@ from rlbench.backend.exceptions import InvalidActionError
 from yarr.utils.process_str import change_case
 from racer.utils.racer_utils import RLBENCH_TASKS
 from rlbench.backend.utils import task_file_to_task_class
-from PIL import Image
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from numpy import ndarray
 import numpy as np
 import quaternion
@@ -24,7 +23,17 @@ from rlbench.backend.observation import Observation
 
 
 
-START_ACTION = np.array([0.2785,-0.0082,1.4719,-0.0,0.9927,-0.0,0.1209,1.0,0.0])
+START_ACTION = np.array(
+    [0.2785,
+     -0.0082,
+     1.4719,
+     -0.0,
+     0.9927,
+     -0.0,
+     0.1209,
+     1.0,
+     0.0]
+)
 STAND_POSE_ACTION = np.array(
     [0.29791760444641113, 
      0.08399009704589844, 
@@ -300,77 +309,77 @@ DIRECTIONS = [("backward", 0, 1), ("forward", 0, -1), ("right", 1, 1), ("left", 
 
 
 def get_robot_delta_state(prev_obs:Observation, curr_obs:Observation):
-        if prev_obs is None or curr_obs is None:
-            return "The robot makes an invalid action."
-        prev_action = Action.from_numpy(np.hstack((prev_obs.gripper_pose, prev_obs.gripper_open, prev_obs.ignore_collisions)))
-        curr_action = Action.from_numpy(np.hstack((curr_obs.gripper_pose, curr_obs.gripper_open, curr_obs.ignore_collisions)))
-        delta_action = curr_action.delta_action(prev_action, curr_action)
+    if prev_obs is None or curr_obs is None:
+        return "The robot makes an invalid action."
+    prev_action = Action.from_numpy(np.hstack((prev_obs.gripper_pose, prev_obs.gripper_open, prev_obs.ignore_collisions)))
+    curr_action = Action.from_numpy(np.hstack((curr_obs.gripper_pose, curr_obs.gripper_open, curr_obs.ignore_collisions)))
+    delta_action = curr_action.delta_action(prev_action, curr_action)
 
-        sentence_parts = []
+    sentence_parts = []
 
-        is_translation_changed = True
-        is_rotation_changed = True
-        is_gripper_changed = True
-        is_collision_changed = True
-        # Position descriptions
-        movements = []
-        for direction, axis, sign in DIRECTIONS:
-            translation_component = delta_action['translation'][axis]
-            if sign * translation_component > TRANSLATION_SMALL_THRES:
-                desc = f"moved {direction}"
-                if abs(translation_component) < TRANSLATION_LARGE_THRES:
-                    desc += " a little bit"
-                movements.append(desc)
-        if not movements:
-            movements.append("didn't move its gripper")
-            is_translation_changed = False
+    is_translation_changed = True
+    is_rotation_changed = True
+    is_gripper_changed = True
+    is_collision_changed = True
+    # Position descriptions
+    movements = []
+    for direction, axis, sign in DIRECTIONS:
+        translation_component = delta_action['translation'][axis]
+        if sign * translation_component > TRANSLATION_SMALL_THRES:
+            desc = f"moved {direction}"
+            if abs(translation_component) < TRANSLATION_LARGE_THRES:
+                desc += " a little bit"
+            movements.append(desc)
+    if not movements:
+        movements.append("didn't move its gripper")
+        is_translation_changed = False
 
-        sentence_parts.append(", ".join(movements))
+    sentence_parts.append(", ".join(movements))
 
-        # Rotation description
-        rotation = None
-        if np.any(np.abs(delta_action['rotation']) > ROTATION_SMALL_THRES):
-            if all(np.abs(delta_action['rotation']) > ROTATION_SMALL_THRES):
-                rotation = "rotated the gripper"
-            elif np.abs(delta_action['rotation'][2]) > ROTATION_LARGE_THRES:
-                rotation = "rotated the gripper about z-axis"
-        else:
-            rotation = "didn't rotate the gripper"
-            is_rotation_changed = False
-        
-        if rotation:
-            sentence_parts.append(rotation)
+    # Rotation description
+    rotation = None
+    if np.any(np.abs(delta_action['rotation']) > ROTATION_SMALL_THRES):
+        if all(np.abs(delta_action['rotation']) > ROTATION_SMALL_THRES):
+            rotation = "rotated the gripper"
+        elif np.abs(delta_action['rotation'][2]) > ROTATION_LARGE_THRES:
+            rotation = "rotated the gripper about z-axis"
+    else:
+        rotation = "didn't rotate the gripper"
+        is_rotation_changed = False
+    
+    if rotation:
+        sentence_parts.append(rotation)
 
-        # Gripper change
-        if delta_action['gripper'] != 0:
-            gripper_change = "opened the gripper" if delta_action['gripper'] == 1 else "closed the gripper"
-        else:
-            gripper_change = "kept the gripper open" if curr_action.gripper_open == 1 else "kept the gripper closed"
-            is_gripper_changed = False
-        sentence_parts.append(gripper_change)
+    # Gripper change
+    if delta_action['gripper'] != 0:
+        gripper_change = "opened the gripper" if delta_action['gripper'] == 1 else "closed the gripper"
+    else:
+        gripper_change = "kept the gripper open" if curr_action.gripper_open == 1 else "kept the gripper closed"
+        is_gripper_changed = False
+    sentence_parts.append(gripper_change)
 
-        # Collision plan
-        collision_description = ""
-        if delta_action['collision'] != 0:
-            collision_description = "that can allow collisions" if delta_action['collision'] == 1 else "that avoids any collision"
-            collision_description = f"by planning a motion path {collision_description}"
-        else:
-            is_collision_changed = False
+    # Collision plan
+    collision_description = ""
+    if delta_action['collision'] != 0:
+        collision_description = "that can allow collisions" if delta_action['collision'] == 1 else "that avoids any collision"
+        collision_description = f"by planning a motion path {collision_description}"
+    else:
+        is_collision_changed = False
 
-        # Join parts with proper handling of "and"
-        complete_sentence = "Then the robot " + sentence_parts[0]
-        if len(sentence_parts) > 1:
-            for part in sentence_parts[1:]:
-                if part == gripper_change:
-                    complete_sentence += f", and {part}"
-                else:
-                    complete_sentence += f", {part}"
+    # Join parts with proper handling of "and"
+    complete_sentence = "Then the robot " + sentence_parts[0]
+    if len(sentence_parts) > 1:
+        for part in sentence_parts[1:]:
+            if part == gripper_change:
+                complete_sentence += f", and {part}"
+            else:
+                complete_sentence += f", {part}"
 
-        # Append collision description last if it exists
-        if collision_description:
-            complete_sentence += f" {collision_description}"
+    # Append collision description last if it exists
+    if collision_description:
+        complete_sentence += f" {collision_description}"
 
-        complete_sentence += "."
+    complete_sentence += "."
 
-        is_robot_state_changed = is_translation_changed or is_rotation_changed or is_gripper_changed or is_collision_changed
-        return complete_sentence, is_robot_state_changed
+    is_robot_state_changed = is_translation_changed or is_rotation_changed or is_gripper_changed or is_collision_changed
+    return complete_sentence, is_robot_state_changed

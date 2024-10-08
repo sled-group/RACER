@@ -1,3 +1,5 @@
+# Code adapted from https://github.com/NVlabs/RVT/blob/0b170d7f1e27a13299a5a06134eeb9f53d494e54/rvt/train.py
+
 import argparse
 from collections import defaultdict
 import os
@@ -165,21 +167,6 @@ def train(agent, data_iter_aug, training_iterations, rank=0):
             for k, v in raw_batch.items()
             if type(v) == torch.Tensor
         }          
-
-        # # plot all the image
-        # front_rgb = batch["front_rgb"] # [batch_size, 1, 3, 128, 128]
-        # front_rgb = front_rgb.squeeze(1)
-        # front_rgb = front_rgb.permute(0, 2, 3, 1)
-        # front_rgb = front_rgb.int().cpu().numpy()
-        # # turn to int8
-        # front_rgb = front_rgb.astype('uint8')
-
-        # # plot all the image in one polot
-        # fig, axs = plt.subplots(1, front_rgb.shape[0], figsize=(20, 5))
-        # for i in range(front_rgb.shape[0]):
-        #     axs[i].imshow(front_rgb[i])
-        #     axs[i].axis('off')
-        # plt.savefig(f"front_rgb_runn.png")
         
         batch["tasks"] = raw_batch["tasks"]
         batch["demo"] = raw_batch["demo"]

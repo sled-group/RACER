@@ -24,8 +24,7 @@ conda install nvidiacub==1.10.0 -c bottler
 conda install pytorch3d==0.7.5 -c pytorch3d
 ```
 
-- **Step 4:** Install CoppeliaSim. Download and unzip [CoppeliaSim_Edu_V4_1_0](https://coppeliarobotics.com/previousVersions) according to your Ubuntu version. If your system is 22.04, please see the [Trouble shooting](#trouble-shooting).
-Once you have downloaded CoppeliaSim, add the following to your *~/.bashrc* file and source it.
+- **Step 4:** Install CoppeliaSim. Download and unzip [CoppeliaSim_Edu_V4_1_0](https://coppeliarobotics.com/previousVersions) according to your Ubuntu version. Once you have downloaded CoppeliaSim, add the following to your *~/.bashrc* file and source it.
 
 ```
 export COPPELIASIM_ROOT=<PATH/TO/COPPELIASIM/DIR>
@@ -64,10 +63,10 @@ After set up the language encoder service following [this](https://github.com/ri
 ```
 python racer/utils/preprocess_data.py
 ```
-The data will be processed into replay buffers by [YARR](https://github.com/stepjam/YARR).  
+The data will be processed into replay buffers by [YARR](https://github.com/stepjam/YARR). 
 
-To save data processing time, you can also directly download our generated replay buffer data [racer_replay_public](https://huggingface.co/datasets/Yinpei/racer_replay_public) here without processing by yourself, and put place it under  `RACER/racer/replay_buffers`.   
-This is useful only if you want to train RACER by yourself and not needed if you just want to evaluate the pre-trained model.
+To save data processing time (around 1-2 days), you can also directly download our generated replay buffer data [racer_replay_public](https://huggingface.co/datasets/Yinpei/racer_replay_public) here without processing by yourself, and put place it under  `RACER/racer/replay_buffers`.   
+This is used only if you want to train RACER by yourself and not needed if you just want to evaluate.
 
 
 
@@ -78,7 +77,7 @@ To train RACER on all RLBench tasks, use the following command:
 ```
 ./scripts/train_racer.sh
 ```
-You can change the `rich/simple/task` yaml files for `--exp_cfg_path` to train different types of models, and change `exp_id` to name the trained model directory name.
+You can change the `rich/simple/task` yaml files for `--exp_cfg_path` to train different types of RACER models, and change `exp_id` to name the trained model directory name.
 
 ### Training LLaVA model
 Please refer to this [page](https://github.com/rich-language-failure-recovery/Open-LLaVA-NeXT/tree/racer_llava)
@@ -100,9 +99,8 @@ python racer/evaluation/llava_api/api.py  --vlm-addr <vlm service addr>
 ```
 
 ### Model Checkpoints
-Download the official [RVT](https://drive.google.com/drive/folders/1lf1znYM5I-_WSooR4VeJjzvydINWPj6B) model and place it into `racer/runs/rvt_ckpt`.   
-Download our RACER visuomotor policy model trained wth [rich instructions]((https://huggingface.co/Yinpei/racer-visuomotor-policy-rich)) and place it under `racer/runs/racer-visuomotor-policy-rich`.
-You can also download RACER visuomotor policy model trained with [simple instructions](https://huggingface.co/Yinpei/racer-visuomotor-policy-simple) or [no instructions](https://huggingface.co/Yinpei/racer-visuomotor-policy-taskgoal) for more evaluation. 
+Download the official [RVT](https://drive.google.com/drive/folders/1lf1znYM5I-_WSooR4VeJjzvydINWPj6B) model and place it as `racer/runs/rvt_ckpt`.   
+Download our [RACER visuomotor policy](https://huggingface.co/Yinpei/racer-visuomotor-policy-rich) model and place it as `racer/runs/racer-visuomotor-policy-rich`.
 
 ### Evaluate RVT
 ```
@@ -113,7 +111,7 @@ You can also download RACER visuomotor policy model trained with [simple instruc
 ```
 ./scripts/eval_racer.sh 
 ```
-It takes around 5 hours to finish all tasks evaluation
+It takes around 5 hours to finish all tasks evaluation. The evaluation results are stored under the model checkpoint directory.
 
 Peak Memory: 19.2GB for langauge model service, 31.7 GB for llava service, 15.5 GB for visuomotor policy model. Using different GPUs or machines to allocate the memory usage is recommended. 
 
@@ -128,7 +126,7 @@ More detailed cases can be found [here](docs/gradio_interface_usage.md)
 
 This code is adapted and modified upon the released  [RVT](https://github.com/NVlabs/RVT/tree/0b170d7f1e27a13299a5a06134eeb9f53d494e54) code.
 
-We really appreciate their open-sourcing such high-quality code, which is very helpful to our research!
+We really appreciate they open source such high-quality code, which is very helpful to our research!
 
 
 ## Citation

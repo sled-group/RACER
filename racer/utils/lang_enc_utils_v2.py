@@ -1,10 +1,10 @@
 """
-Call service instead of loading models in memory
+Call model service instead of loading models in memory
 """
 
 import threading
 import time
-from typing import Dict, List, Union
+from typing import List, Union
 import numpy as np
 import requests
 import torch

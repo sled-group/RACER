@@ -1,8 +1,6 @@
 # Code Adapted from https://github.com/NVlabs/RVT
 
-from copy import deepcopy
 import numpy as np
-
 
 from yarr.utils.observation_type import ObservationElement
 from yarr.replay_buffer.replay_buffer import ReplayElement
