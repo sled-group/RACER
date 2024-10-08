@@ -415,8 +415,8 @@ class Evaluator:
             if last_action[-2] == 0 and action[-2] == 0:
                 action[-1] = 0
         if task_name in ["close_jar"]: # avoid stuck in the table
-            # if np.linalg.norm(action[:3] - last_action[:3]) < 0.008 and last_action[-2]==0 and step <=3:
-            #     action[2] += 0.18
+            if np.linalg.norm(action[:3] - last_action[:3]) < 0.008 and last_action[-2]==0 and step <=3:
+                action[2] += 0.18
             if last_action[-2]==0:
                 action[-2] = 0
         if task_name in ["light_bulb_in"]:
