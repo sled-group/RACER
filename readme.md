@@ -54,7 +54,7 @@ Download [RLbench](https://drive.google.com/drive/folders/0B2LlLwoO3nfZfkFqMEhXW
 You can only download `test` for evaluation if you want to save some space.
 
 - **Step 2:**
-Download our language-guided failure-recovery [augmentation training data](https://huggingface.co/datasets/Yinpei/augmented_rlbench). put it under `RACER/racer/data/augmented_rlbench/xxx`, where `xxx` is either `train` or `val`.
+Download our language-guided failure-recovery [augmentation training data](https://huggingface.co/datasets/sled-umich/RACER-augmented_rlbench). put it under `RACER/racer/data/augmented_rlbench/xxx`, where `xxx` is either `train` or `val`.
 
 For more information about our automatic data generation pipeline, please refer to this [page](https://github.com/rich-language-failure-recovery/RACER-DataGen).
 
@@ -66,7 +66,7 @@ python racer/utils/preprocess_data.py
 ```
 The data will be processed into replay buffers by [YARR](https://github.com/stepjam/YARR). 
 
-To save data processing time (around 1-2 days), you can also directly download our generated replay buffer data [racer_replay_public](https://huggingface.co/datasets/Yinpei/racer_replay_public) here without processing by yourself, and put place it under  `RACER/racer/replay_buffers`.   
+To save data processing time (around 1-2 days), you can also directly download our generated replay buffer data [racer_replay_public](https://huggingface.co/datasets/sled-umich/RACER-replay-buffer) here without processing by yourself, and put place it under  `RACER/racer/replay_buffers`.   
 This is used only if you want to train RACER by yourself and not needed if you just want to evaluate.
 
 
